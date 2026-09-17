@@ -67,6 +67,7 @@ export default function EditEventScreen() {
 
   const { organizerEmail, organizerName } = resolveOrganizer(activeAccount);
 
+  const parsedRrule = parseRrule(event.rrule);
   const initialValues = {
     summary: event.summary,
     calendarId: event.calendarId,
@@ -77,7 +78,11 @@ export default function EditEventScreen() {
     location: event.location ?? '',
     attendees: event.attendees,
     alarmMinutes: event.alarmMinutes,
-    rrule: parseRrule(event.rrule),
+    rrule: parsedRrule,
+    // parseRrule doesn't understand every RRULE shape (e.g. BYMONTHDAY,
+    // BYSETPOS); when it can't, keep the original line so saving without
+    // touching recurrence re-emits it instead of silently dropping it.
+    rawRrule: !parsedRrule && event.rrule ? event.rrule : undefined,
     color: event.colorName,
   };
 

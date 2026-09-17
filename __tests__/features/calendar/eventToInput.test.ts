@@ -53,13 +53,20 @@ describe('eventToInput', () => {
     expect(eventToInput(recurring, account).rrule).toEqual({ freq: 'WEEKLY', byDay: ['MO'] });
   });
 
-  it('leaves rrule undefined when the stored rule cannot be represented exactly', () => {
+  it('falls back to the original rrule line when the stored rule cannot be represented exactly, instead of silently dropping recurrence', () => {
     const exotic: CalendarEvent = {
       ...base,
       isRecurring: true,
       rrule: 'RRULE:FREQ=MONTHLY;BYMONTHDAY=15',
     };
-    expect(eventToInput(exotic, account).rrule).toBeUndefined();
+    const input = eventToInput(exotic, account);
+    expect(input.rrule).toBeUndefined();
+    expect(input.rawRrule).toBe('RRULE:FREQ=MONTHLY;BYMONTHDAY=15');
+  });
+
+  it('does not set rawRrule when the rule parses normally', () => {
+    const recurring: CalendarEvent = { ...base, isRecurring: true, rrule: 'RRULE:FREQ=WEEKLY;BYDAY=MO' };
+    expect(eventToInput(recurring, account).rawRrule).toBeUndefined();
   });
 
   it('tolerates an event with no optional fields', () => {

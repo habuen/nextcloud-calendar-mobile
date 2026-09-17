@@ -27,6 +27,8 @@ interface InitialValues {
   location?: string;
   attendees?: Attendee[];
   rrule?: RecurrenceRule;
+  /** The original `RRULE:...` line when `rrule` couldn't represent it (e.g. BYMONTHDAY, BYSETPOS) — carried through untouched on submit so saving without editing recurrence doesn't silently strip it. Cleared the moment the user interacts with the recurrence picker. */
+  rawRrule?: string;
   alarmMinutes?: number;
   color?: string;
 }
@@ -78,6 +80,7 @@ export function EventForm({
   const [talkRoomType, setTalkRoomType] = useState<TalkRoomType>('private');
   const [attendees, setAttendees] = useState<Attendee[]>(initialValues?.attendees ?? []);
   const [rrule, setRrule] = useState<RecurrenceRule | undefined>(initialValues?.rrule);
+  const [rawRrule, setRawRrule] = useState<string | undefined>(initialValues?.rawRrule);
   const [alarmMinutes, setAlarmMinutes] = useState<number | undefined>(initialValues?.alarmMinutes);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [calendarError, setCalendarError] = useState<string | null>(null);
@@ -190,7 +193,7 @@ export function EventForm({
     onSubmit({
       summary: summary.trim(), calendarId, dtstart, dtend, allDay,
       description, location, attendees, withTalkRoom, talkRoomType,
-      organizerEmail, organizerName, rrule, alarmMinutes, color,
+      organizerEmail, organizerName, rrule, rawRrule, alarmMinutes, color,
     });
   }
 
@@ -367,7 +370,12 @@ export function EventForm({
           hAlign="stretch"
         >
           <View style={twoColDates ? styles.grow : undefined}>
-            <RecurrencePicker value={rrule} onChange={setRrule} dtstart={dtstart} allDay={allDay} />
+            <RecurrencePicker
+              value={rrule}
+              onChange={(v) => { setRrule(v); setRawRrule(undefined); }}
+              dtstart={dtstart}
+              allDay={allDay}
+            />
           </View>
           <View style={twoColDates ? styles.grow : undefined}>
             <AlertPicker value={alarmMinutes} onChange={setAlarmMinutes} />

@@ -94,14 +94,14 @@ function buildIcsForInput(
         uid, summary: input.summary, description, location,
         dtstart: input.dtstart, dtend: input.dtend,
         organizerEmail: input.organizerEmail, organizerName: input.organizerName,
-        attendees: input.attendees, rrule: input.rrule, alarmMinutes: input.alarmMinutes,
+        attendees: input.attendees, rrule: input.rrule, rawRrule: input.rawRrule, alarmMinutes: input.alarmMinutes,
         sequence, extraLines, color: input.color,
       })
     : buildIcs({
         uid, summary: input.summary, description, location,
         dtstart: input.dtstart, dtend: input.dtend,
         organizerEmail: input.organizerEmail, organizerName: input.organizerName,
-        attendees: input.attendees, timezone, rrule: input.rrule, alarmMinutes: input.alarmMinutes,
+        attendees: input.attendees, timezone, rrule: input.rrule, rawRrule: input.rawRrule, alarmMinutes: input.alarmMinutes,
         sequence, extraLines, color: input.color,
       });
 }
