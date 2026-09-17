@@ -1,4 +1,4 @@
-import { buildIcs, buildAllDayIcs, shiftIcsDates, injectExdate, truncateRruleUntil } from '@/utils/ics';
+import { buildIcs, buildAllDayIcs, buildExceptionIcs, shiftIcsDates, injectExdate, truncateRruleUntil, upsertExceptionInMaster } from '@/utils/ics';
 import { parseRrule } from '@/features/calendar/utils/parseRrule';
 import type { Attendee } from '../../src/types';
 
@@ -390,5 +390,55 @@ describe('truncateRruleUntil', () => {
     expect(out).toContain('RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU\r\n');
     expect(out).toContain('RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\n');
     expect(out.match(/UNTIL=/g)).toHaveLength(1);
+  });
+});
+
+describe('upsertExceptionInMaster', () => {
+  const masterIcs = buildIcs({ ...base, uid: 'series-1', rrule: { freq: 'WEEKLY' } });
+  const recurrenceId = new Date('2026-06-08T14:00:00Z');
+  const exceptionIcs = buildExceptionIcs({
+    ...base, uid: 'series-1', summary: 'Moved Sync', recurrenceId,
+    dtstart: new Date('2026-06-08T16:00:00Z'), dtend: new Date('2026-06-08T17:00:00Z'),
+    color: 'royalblue',
+  });
+
+  it('keeps both VEVENTs in one VCALENDAR (a single object), not two', () => {
+    const out = upsertExceptionInMaster(masterIcs, exceptionIcs);
+    expect(out.match(/BEGIN:VCALENDAR/g)).toHaveLength(1);
+    expect(out.match(/BEGIN:VEVENT/g)).toHaveLength(2);
+  });
+
+  it('does not add an EXDATE — the override alone replaces the occurrence', () => {
+    const out = upsertExceptionInMaster(masterIcs, exceptionIcs);
+    expect(out).not.toContain('EXDATE');
+  });
+
+  it('leaves the master VEVENT (no RECURRENCE-ID) untouched', () => {
+    const out = upsertExceptionInMaster(masterIcs, exceptionIcs);
+    const blocks = out.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g) ?? [];
+    const master = blocks.find((b) => !b.includes('RECURRENCE-ID'))!;
+    expect(master).toContain('SUMMARY:Team Sync');
+    expect(master).toContain('RRULE:FREQ=WEEKLY');
+  });
+
+  it('carries the override summary, time, and color on the RECURRENCE-ID block', () => {
+    const out = upsertExceptionInMaster(masterIcs, exceptionIcs);
+    const blocks = out.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g) ?? [];
+    const override = blocks.find((b) => b.includes('RECURRENCE-ID'))!;
+    expect(override).toContain('SUMMARY:Moved Sync');
+    expect(override).toContain('COLOR:royalblue');
+  });
+
+  it('replaces an earlier override for the same RECURRENCE-ID instead of duplicating it', () => {
+    const firstEdit = upsertExceptionInMaster(masterIcs, exceptionIcs);
+    const secondException = buildExceptionIcs({
+      ...base, uid: 'series-1', summary: 'Moved Again', recurrenceId,
+      dtstart: new Date('2026-06-08T18:00:00Z'), dtend: new Date('2026-06-08T19:00:00Z'),
+    });
+    const out = upsertExceptionInMaster(firstEdit, secondException);
+
+    expect(out.match(/BEGIN:VEVENT/g)).toHaveLength(2);
+    expect(out).not.toContain('Moved Sync');
+    expect(out).toContain('Moved Again');
   });
 });
