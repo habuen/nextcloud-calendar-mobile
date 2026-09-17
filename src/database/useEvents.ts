@@ -18,10 +18,21 @@ export function useEventsForRange(accountId: string, start: Date, end: Date, ref
       Q.where('start', Q.lt(end.getTime())),
       Q.where('end', Q.gt(start.getTime())),
     );
+    // First emission of a freshly (re)subscribed query is a different date
+    // range than whatever `events` currently holds (e.g. the month just
+    // swiped to) — it can never content-match, so paying for the comparison
+    // below is pure wasted JS-thread work landing right as the swipe
+    // settles. Only content-compare later emissions from this same range.
+    let first = true;
     const subscription = query.observeWithColumns(EVENT_OBSERVED_COLUMNS).subscribe((rows) => {
       const next = rows
         .map(mapEventToShared)
         .sort((a, b) => a.dtstart.getTime() - b.dtstart.getTime());
+      if (first) {
+        first = false;
+        setEvents(next);
+        return;
+      }
       // WatermelonDB emits on any row change to an observed column, even ones
       // that don't affect this range's content (e.g. a sync touching other
       // events' etags). Without this guard every such write hands every
