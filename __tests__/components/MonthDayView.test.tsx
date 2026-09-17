@@ -1,12 +1,12 @@
 import React from 'react';
-import { render as rtlRender } from '@testing-library/react-native';
+import { render as rtlRender, within } from '@testing-library/react-native';
 import { ThemeWrapper } from '../helpers/theme';
 import dayjs from 'dayjs';
 
 const render = (ui: React.ReactElement, opts?: Parameters<typeof rtlRender>[1]) =>
   rtlRender(ui, { wrapper: ThemeWrapper, ...opts });
 import 'dayjs/locale/fr';
-import { MonthDayView, buildMonthGrid, eventDayKeys } from '@/features/calendar/components/MonthDayView';
+import { MonthDayView, buildMonthGrid, eventDayKeys, buildWeekSegments, assignLanes } from '@/features/calendar/components/MonthDayView';
 import type { CalendarEvent } from '../../src/types';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -143,15 +143,18 @@ describe('eventDayKeys', () => {
 
 describe('MonthDayView', () => {
   it('derives the selected day from the date prop and follows prop changes', () => {
-    const { getByText, queryByText, rerender } = render(view(june10));
+    // Scoped to the day list below the grid: the grid itself always shows an
+    // event bar on its actual date regardless of which day is selected.
+    const { getByText, getByTestId, rerender } = render(view(june10));
+    const dayList = () => within(getByTestId('monthDayEventsList'));
 
     expect(getByText(dayjs(june10).format('dddd, LL'))).toBeTruthy();
-    expect(queryByText('Birthday Party')).toBeNull();
+    expect(dayList().queryByText('Birthday Party')).toBeNull();
 
     rerender(view(june15));
 
     expect(getByText(dayjs(june15).format('dddd, LL'))).toBeTruthy();
-    expect(queryByText('Birthday Party')).toBeTruthy();
+    expect(dayList().queryByText('Birthday Party')).toBeTruthy();
   });
 
   it('reports the first day of the paged-to month through onMonthChange', () => {
@@ -210,23 +213,75 @@ describe('MonthDayView multi-day all-day events', () => {
     );
   }
 
+  function dayList(date: Date) {
+    return within(render(allDayView(date)).getByTestId('monthDayEventsList'));
+  }
+
   it('lists the event on its start day', () => {
-    expect(render(allDayView(new Date(2026, 5, 15))).queryByText('Conference')).toBeTruthy();
+    expect(dayList(new Date(2026, 5, 15)).queryByText('Conference')).toBeTruthy();
   });
 
   it('lists the event on a middle day it spans', () => {
-    expect(render(allDayView(new Date(2026, 5, 16))).queryByText('Conference')).toBeTruthy();
+    expect(dayList(new Date(2026, 5, 16)).queryByText('Conference')).toBeTruthy();
   });
 
   it('lists the event on its inclusive last day', () => {
-    expect(render(allDayView(new Date(2026, 5, 17))).queryByText('Conference')).toBeTruthy();
+    expect(dayList(new Date(2026, 5, 17)).queryByText('Conference')).toBeTruthy();
   });
 
   it('does not list the event the day before it starts', () => {
-    expect(render(allDayView(new Date(2026, 5, 14))).queryByText('Conference')).toBeNull();
+    expect(dayList(new Date(2026, 5, 14)).queryByText('Conference')).toBeNull();
   });
 
   it('does not list the event the day after it ends', () => {
-    expect(render(allDayView(new Date(2026, 5, 18))).queryByText('Conference')).toBeNull();
+    expect(dayList(new Date(2026, 5, 18)).queryByText('Conference')).toBeNull();
+  });
+});
+
+describe('buildWeekSegments / assignLanes (month grid event bars)', () => {
+  const day = (d: number) => dayjs(new Date(2026, 5, d));
+  // A Sun-Sat week covering June 14-20, 2026.
+  const week = Array.from({ length: 7 }, (_, i) => day(14 + i));
+
+  const make = (over: Partial<CalendarEvent>): CalendarEvent => ({
+    uid: 'x', href: '/x.ics', calendarId: 'c1', accountId: 'a1', summary: 'x',
+    dtstart: new Date(2026, 5, 15), dtend: new Date(2026, 5, 15),
+    allDay: true, color: '#000', attendees: [], isRecurring: false, ...over,
+  });
+
+  it('clips a multi-day event to the columns it covers within the week', () => {
+    const ev = make({ uid: 'e1', dtstart: new Date(2026, 5, 15), dtend: new Date(2026, 5, 17) });
+    const [seg] = buildWeekSegments(week, [ev]);
+    expect(seg.startCol).toBe(1); // June 15 is column 1 (Mon)
+    expect(seg.endCol).toBe(3); // June 17 is column 3 (Wed)
+  });
+
+  it('clips an event that starts before the week to the week start', () => {
+    const ev = make({ uid: 'e1', dtstart: new Date(2026, 5, 10), dtend: new Date(2026, 5, 16) });
+    const [seg] = buildWeekSegments(week, [ev]);
+    expect(seg.startCol).toBe(0);
+    expect(seg.endCol).toBe(2); // June 16 is column 2 (Tue)
+  });
+
+  it('omits an event that does not overlap the week at all', () => {
+    const ev = make({ uid: 'e1', dtstart: new Date(2026, 5, 1), dtend: new Date(2026, 5, 2) });
+    expect(buildWeekSegments(week, [ev])).toEqual([]);
+  });
+
+  it('places non-overlapping events on the same lane', () => {
+    const a = make({ uid: 'a', dtstart: new Date(2026, 5, 14), dtend: new Date(2026, 5, 15) });
+    const b = make({ uid: 'b', dtstart: new Date(2026, 5, 16), dtend: new Date(2026, 5, 17) });
+    const laned = assignLanes(buildWeekSegments(week, [a, b]));
+    expect(laned.find((s) => s.event.uid === 'a')!.lane).toBe(0);
+    expect(laned.find((s) => s.event.uid === 'b')!.lane).toBe(0);
+  });
+
+  it('puts overlapping events on separate lanes', () => {
+    const a = make({ uid: 'a', dtstart: new Date(2026, 5, 14), dtend: new Date(2026, 5, 17) });
+    const b = make({ uid: 'b', dtstart: new Date(2026, 5, 16), dtend: new Date(2026, 5, 18) });
+    const laned = assignLanes(buildWeekSegments(week, [a, b]));
+    const laneA = laned.find((s) => s.event.uid === 'a')!.lane;
+    const laneB = laned.find((s) => s.event.uid === 'b')!.lane;
+    expect(laneA).not.toBe(laneB);
   });
 });
