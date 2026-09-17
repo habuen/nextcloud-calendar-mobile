@@ -20,6 +20,7 @@ import {
   HOUR_RAIL_WIDTH,
   allDayRowHeight,
   buildDayIndex,
+  dayKey,
   pageDates,
   pageFocusDate,
   pageIndexForDate,
@@ -78,6 +79,10 @@ function TimeGridViewImpl({
     const id = setInterval(() => setNow(new Date()), 60 * 1000);
     return () => clearInterval(id);
   }, []);
+  // A string that only changes once at midnight, unlike `now` (every 60s) —
+  // passed to the header so it doesn't re-render every tick just to
+  // recheck which date is highlighted as today.
+  const todayKey = dayKey(now);
 
   const [localAnchor, setLocalAnchor] = useState(anchorDate);
   useEffect(() => { setLocalAnchor(anchorDate); }, [anchorDate]);
@@ -211,12 +216,12 @@ function TimeGridViewImpl({
     ({ index }: { index: number }) => (
       <TimeGridHeader
         dates={datesForIndex(index)}
-        now={now}
+        todayKey={todayKey}
         allDayEvents={allDayEvents}
         onPressEvent={onPressAllDayEvent}
       />
     ),
-    [datesForIndex, now, allDayEvents, onPressAllDayEvent]
+    [datesForIndex, todayKey, allDayEvents, onPressAllDayEvent]
   );
 
   const renderGridPage = useCallback(

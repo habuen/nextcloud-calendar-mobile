@@ -29,6 +29,9 @@ function TimeGridPageImpl({
   onPressEvent,
   onMoveEvent,
 }: Props) {
+  // Only the column matching today's date gets a live `now` — see DayColumn's
+  // comment. dayKey is a cheap string, so this is fine to derive every render.
+  const todayKey = dayKey(now);
   const layoutCache = useRef(new WeakMap<GridEvent[], PositionedEvent[]>());
   const layouts = useMemo(
     () =>
@@ -64,7 +67,7 @@ function TimeGridPageImpl({
             date={date}
             positioned={layouts[i]}
             hourRowHeight={hourRowHeight}
-            now={now}
+            now={dayKey(date) === todayKey ? now : undefined}
             onPressSlot={onPressSlot}
             onPressEvent={onPressEvent}
             dimmedUid={drag?.columnIndex === i ? drag.event._event.uid : undefined}
