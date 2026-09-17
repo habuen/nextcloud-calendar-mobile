@@ -25,7 +25,10 @@ export function useEventByUid(
       .get<Event>('events')
       .query(Q.where('account_id', accountId), Q.where('uid', uid))
       .observeWithColumns(EVENT_OBSERVED_COLUMNS)
-      .subscribe((rows) => setEvent(rows[0] ? mapEventToShared(rows[0]) : null));
+      .subscribe((rows) => {
+        const next = rows[0] ? mapEventToShared(rows[0]) : null;
+        setEvent((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+      });
     return () => subscription.unsubscribe();
   }, [accountId, uid, database]);
 
