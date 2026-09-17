@@ -1,5 +1,5 @@
 import { parseIcsObjects, parseIcsObjectsAsync, extractDtstartDtend } from '@/utils/caldav-parse';
-import { buildAllDayIcs } from '@/utils/ics';
+import { buildAllDayIcs, buildIcs, buildExceptionIcs, upsertExceptionInMaster } from '@/utils/ics';
 
 const sampleIcs = `BEGIN:VCALENDAR
 VERSION:2.0
@@ -729,5 +729,38 @@ END:VCALENDAR`;
   it('keeps every occurrence when there is no EXDATE at all', () => {
     const got = occurrences('X-NOTHING:1');
     expect(got).toContain(deletedSlot);
+  });
+});
+
+describe('editing one occurrence end-to-end (write via upsertExceptionInMaster, then read back)', () => {
+  const calMeta = { calendarId: 'cal-1', accountId: 'acc-1', color: '#0082c9' };
+  const rangeStart = new Date('2026-06-01T00:00:00Z');
+  const rangeEnd = new Date('2026-07-01T00:00:00Z');
+
+  it('recolors only the edited occurrence, leaving the rest of the series on the calendar color', () => {
+    const masterIcs = buildIcs({
+      uid: 'weekly-1', summary: 'Standup', description: '', location: '',
+      dtstart: new Date('2026-06-01T09:00:00Z'), dtend: new Date('2026-06-01T09:15:00Z'),
+      organizerEmail: 'j@e.com', organizerName: 'J', attendees: [],
+      timezone: 'UTC', rrule: { freq: 'WEEKLY' },
+    });
+    const recurrenceId = new Date('2026-06-08T09:00:00Z');
+    const exceptionIcs = buildExceptionIcs({
+      uid: 'weekly-1', summary: 'Standup', description: '', location: '',
+      dtstart: recurrenceId, dtend: new Date('2026-06-08T09:15:00Z'),
+      organizerEmail: 'j@e.com', organizerName: 'J', attendees: [],
+      timezone: 'UTC', recurrenceId, color: 'royalblue',
+    });
+    const merged = upsertExceptionInMaster(masterIcs, exceptionIcs);
+
+    const events = parseIcsObjects([{ ics: merged, href: '/cal/weekly.ics' }], calMeta, rangeStart, rangeEnd);
+    expect(events).toHaveLength(5);
+
+    const edited = events.find((e) => e.dtstart.toISOString() === '2026-06-08T09:00:00.000Z')!;
+    expect(edited.color).toBe('#4169e1');
+
+    const untouched = events.filter((e) => e.dtstart.toISOString() !== '2026-06-08T09:00:00.000Z');
+    expect(untouched).toHaveLength(4);
+    expect(untouched.every((e) => e.color === '#0082c9')).toBe(true);
   });
 });

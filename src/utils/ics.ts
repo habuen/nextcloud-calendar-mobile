@@ -237,6 +237,34 @@ export function buildExceptionIcs(params: BuildIcsParams & { recurrenceId: Date 
     ]);
 }
 
+function extractVeventBlock(ics: string): string {
+    const match = ics.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/);
+    if (!match) throw new Error('extractVeventBlock: no VEVENT found');
+    return match[0];
+}
+
+function veventRecurrenceIdValue(block: string): string | undefined {
+    return block.match(/^RECURRENCE-ID[^\r\n:]*:([^\r\n]*)/m)?.[1];
+}
+
+/**
+ * Folds a single-occurrence override (built by buildExceptionIcs) into the
+ * SAME calendar object as its master, replacing any earlier override for
+ * that same RECURRENCE-ID. This must be written back to the master's own
+ * href, not a new resource: CalDAV servers generally reject a second object
+ * reusing the master's UID, and the reader (caldav-parse.ts) only recognizes
+ * an override when it shares the master's document in the first place.
+ */
+export function upsertExceptionInMaster(masterIcs: string, exceptionIcs: string): string {
+    const newBlock = extractVeventBlock(exceptionIcs);
+    const newRid = veventRecurrenceIdValue(newBlock);
+
+    const withoutOldOverride = masterIcs.replace(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g, (existing) =>
+        newRid && veventRecurrenceIdValue(existing) === newRid ? '' : existing);
+
+    return withoutOldOverride.replace('END:VCALENDAR', `${newBlock}\r\nEND:VCALENDAR`);
+}
+
 function editMasterVevent(ics: string, edit: (block: string) => string): string {
     let edited = false;
     return ics.replace(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g, (block) => {

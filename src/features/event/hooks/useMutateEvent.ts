@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import { putEvent, updateEvent, deleteEvent, moveEvent, fetchEventIcs } from '@/services/nextcloud/caldav';
 import { createTalkRoom } from '@/services/nextcloud/talk';
 import { describeMutationError } from '@/services/shared/errors';
-import { buildIcs, buildAllDayIcs, buildExceptionIcs, injectExdate, truncateRruleUntil, shiftIcsDates } from '@/utils/ics';
+import { buildIcs, buildAllDayIcs, buildExceptionIcs, injectExdate, truncateRruleUntil, shiftIcsDates, upsertExceptionInMaster } from '@/utils/ics';
 import { parseIcsObjects, extractDtstartTzid, extractSequence, extractDtstartDtend, extractExtraVeventLines } from '@/utils/caldav-parse';
 import { isValidTimeZone } from '@/utils/timezone';
 import { cssColorNameToHex } from '@/utils/eventColors';
@@ -20,7 +20,7 @@ import {
   seriesBaseUid,
   shiftSeriesDates,
 } from '@/database/eventWrites';
-import { exceptionResourceUid, occurrenceSlot } from '@/features/event/occurrenceTarget';
+import { occurrenceSlot } from '@/features/event/occurrenceTarget';
 import type { Account, CalendarMeta, CalendarEvent, CreateEventInput, RecurrenceEditScope } from '@/types';
 
 const TALK_URL_PATTERN = /\/call\//;
@@ -310,10 +310,6 @@ export function useUpdateEvent(account: Account, calendars: CalendarMeta[]) {
         } else if (scope === 'this') {
           const slot = occurrenceSlot(event);
           const masterIcs = await fetchEventIcs(account, event.href);
-          await updateEvent(account, event.href, injectExdate(masterIcs, slot, timezone));
-          const cal = calendars.find((c) => c.id === event.calendarId) ?? calendars.find((c) => c.id === input.calendarId);
-          if (!cal) throw new Error('Calendar not found for exception VEVENT');
-          const exceptionUid = exceptionResourceUid(event);
           const exIcs = buildExceptionIcs({
             uid: seriesBaseUid(event.uid), summary: input.summary, description, location,
             dtstart: input.dtstart, dtend: input.dtend,
@@ -323,7 +319,13 @@ export function useUpdateEvent(account: Account, calendars: CalendarMeta[]) {
             extraLines: extractExtraVeventLines(masterIcs),
             color: input.color,
           });
-          await putEvent(account, cal, exceptionUid, exIcs);
+          // Folded into the master's own object in one write: a RECURRENCE-ID
+          // override already replaces that occurrence on its own (no EXDATE
+          // needed), and a separate resource reusing the master's UID is
+          // liable to be rejected by the server — if that write then fails,
+          // an EXDATE written just before it would have deleted the
+          // occurrence with nothing to show in its place.
+          await updateEvent(account, event.href, upsertExceptionInMaster(masterIcs, exIcs));
         } else if (scope === 'thisAndFollowing') {
           const masterIcs = await fetchEventIcs(account, event.href);
           const oneDayBefore = dayjs(occurrenceSlot(event)).subtract(1, 'day').endOf('day').toDate();
