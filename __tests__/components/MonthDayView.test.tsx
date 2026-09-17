@@ -1,5 +1,5 @@
 import React from 'react';
-import { render as rtlRender, within, act } from '@testing-library/react-native';
+import { render as rtlRender, act, fireEvent } from '@testing-library/react-native';
 import { ThemeWrapper } from '../helpers/theme';
 import dayjs from 'dayjs';
 
@@ -143,19 +143,22 @@ describe('eventDayKeys', () => {
 });
 
 describe('MonthDayView', () => {
-  it('derives the selected day from the date prop and follows prop changes', () => {
-    // Scoped to the day list below the grid: the grid itself always shows an
-    // event bar on its actual date regardless of which day is selected.
-    const { getByText, getByTestId, rerender } = render(view(june10));
-    const dayList = () => within(getByTestId('monthDayEventsList'));
+  it('highlights the day given by the date prop and follows prop changes', () => {
+    const { getByTestId, queryByTestId, rerender } = render(view(june10));
 
-    expect(getByText(dayjs(june10).format('dddd, LL'))).toBeTruthy();
-    expect(dayList().queryByText('Birthday Party')).toBeNull();
+    expect(getByTestId('day-selected-2026-06-10')).toBeTruthy();
+    expect(queryByTestId('day-selected-2026-06-15')).toBeNull();
 
     rerender(view(june15));
 
-    expect(getByText(dayjs(june15).format('dddd, LL'))).toBeTruthy();
-    expect(dayList().queryByText('Birthday Party')).toBeTruthy();
+    expect(queryByTestId('day-selected-2026-06-10')).toBeNull();
+    expect(getByTestId('day-selected-2026-06-15')).toBeTruthy();
+  });
+
+  it('shows an event\'s title in the grid regardless of which day is selected', () => {
+    // The grid isn't scoped to the selected day — it always shows every
+    // event on its own actual date(s) within the rendered month.
+    expect(render(view(june10)).queryByText('Birthday Party')).toBeTruthy();
   });
 
   it('reports the first day of the paged-to month through onMonthChange', () => {
@@ -189,6 +192,49 @@ describe('MonthDayView', () => {
     pager.onPageChange(-2);
     expect(dayjs(onMonthChange.mock.calls[1][0]).format('YYYY-MM-DD')).toBe('2026-04-01');
   });
+
+  it('presses a day cell through to onSelectDate, the hook used to jump straight into day view', () => {
+    const onSelectDate = jest.fn();
+    const { getByTestId } = render(
+      <MonthDayView
+        date={june10}
+        events={[]}
+        weekStartsOn={0}
+        jump={{ nonce: 0, target: june10 }}
+        onSelectDate={onSelectDate}
+        onMonthChange={jest.fn()}
+        onPressEvent={jest.fn()}
+        onPressCell={jest.fn()}
+      />
+    );
+
+    fireEvent.press(getByTestId('day-selected-2026-06-10'));
+
+    expect(onSelectDate).toHaveBeenCalledWith(expect.any(Date));
+    expect(dayjs(onSelectDate.mock.calls[0][0]).format('YYYY-MM-DD')).toBe('2026-06-10');
+  });
+
+  it('presses an event bar through to onPressEvent, not onSelectDate — the grid is the only way left to open an event', () => {
+    const onSelectDate = jest.fn();
+    const onPressEvent = jest.fn();
+    const { getByText } = render(
+      <MonthDayView
+        date={june10}
+        events={[event]}
+        weekStartsOn={0}
+        jump={{ nonce: 0, target: june10 }}
+        onSelectDate={onSelectDate}
+        onMonthChange={jest.fn()}
+        onPressEvent={onPressEvent}
+        onPressCell={jest.fn()}
+      />
+    );
+
+    fireEvent.press(getByText('Birthday Party'));
+
+    expect(onPressEvent).toHaveBeenCalledWith(event);
+    expect(onSelectDate).not.toHaveBeenCalled();
+  });
 });
 
 describe('MonthDayView multi-day all-day events', () => {
@@ -214,28 +260,15 @@ describe('MonthDayView multi-day all-day events', () => {
     );
   }
 
-  function dayList(date: Date) {
-    return within(render(allDayView(date)).getByTestId('monthDayEventsList'));
-  }
-
-  it('lists the event on its start day', () => {
-    expect(dayList(new Date(2026, 5, 15)).queryByText('Conference')).toBeTruthy();
+  it('renders the multi-day event as a single spanning bar, not one per covered day', () => {
+    // The grid isn't scoped to the selected day, so whichever day is passed
+    // as `date` (as long as it's in the same month) renders the same grid.
+    const { getAllByText } = render(allDayView(new Date(2026, 5, 15)));
+    expect(getAllByText('Conference')).toHaveLength(1);
   });
 
-  it('lists the event on a middle day it spans', () => {
-    expect(dayList(new Date(2026, 5, 16)).queryByText('Conference')).toBeTruthy();
-  });
-
-  it('lists the event on its inclusive last day', () => {
-    expect(dayList(new Date(2026, 5, 17)).queryByText('Conference')).toBeTruthy();
-  });
-
-  it('does not list the event the day before it starts', () => {
-    expect(dayList(new Date(2026, 5, 14)).queryByText('Conference')).toBeNull();
-  });
-
-  it('does not list the event the day after it ends', () => {
-    expect(dayList(new Date(2026, 5, 18)).queryByText('Conference')).toBeNull();
+  it('does not show the event when a different month is rendered', () => {
+    expect(render(allDayView(new Date(2026, 8, 1))).queryByText('Conference')).toBeNull();
   });
 });
 

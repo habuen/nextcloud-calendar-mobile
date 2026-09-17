@@ -62,6 +62,16 @@ export function useCalendarNavigation() {
     }
   }, [setDate]);
 
+  // Like switchMode('day'), but focused on an explicit date rather than
+  // whatever `date` currently holds — switchMode reads that through a ref,
+  // which would still be stale immediately after a caller's own setDate(d)
+  // in the same handler (the ref only updates on the next render).
+  const goToDay = useCallback((d: Date) => {
+    setAnchorDate(d);
+    setDate(d);
+    setViewMode('day');
+  }, [setDate, setViewMode]);
+
   return {
     viewMode,
     isCalendarMode,
@@ -75,6 +85,7 @@ export function useCalendarNavigation() {
     agendaRef,
     switchMode,
     goToday,
+    goToDay,
     onPageChange,
   };
 }
