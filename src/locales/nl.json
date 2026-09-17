@@ -195,6 +195,9 @@
     "weekStart": "Week begint op",
     "sunday": "Zondag",
     "monday": "Maandag",
+    "monthEventDisplay": "Afspraken in maandweergave",
+    "monthEventDisplayBars": "Titels",
+    "monthEventDisplayDots": "Stippen",
     "calendarZoom": "Agendazoom",
     "reset": "Resetten",
     "zoom": {

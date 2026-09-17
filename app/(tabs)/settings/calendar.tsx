@@ -18,12 +18,19 @@ const WEEK_START_OPTIONS = [
   { labelKey: 'settings.monday', value: 1 },
 ] as const;
 
+const MONTH_EVENT_DISPLAY_OPTIONS = [
+  { labelKey: 'settings.monthEventDisplayBars', value: 'bars' },
+  { labelKey: 'settings.monthEventDisplayDots', value: 'dots' },
+] as const;
+
 export default function CalendarSettingsScreen() {
   const { t } = useTranslation();
   const hourRowHeight = useCalendarStore((s) => s.hourRowHeight);
   const setHourRowHeight = useCalendarStore((s) => s.setHourRowHeight);
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn);
   const setWeekStartsOn = useSettingsStore((s) => s.setWeekStartsOn);
+  const monthEventDisplay = useSettingsStore((s) => s.monthEventDisplay);
+  const setMonthEventDisplay = useSettingsStore((s) => s.setMonthEventDisplay);
 
   const [pendingWeek, setPendingWeek] = useState(weekStartsOn);
   useEffect(() => { setPendingWeek(weekStartsOn); }, [weekStartsOn]);
@@ -45,6 +52,22 @@ export default function CalendarSettingsScreen() {
               fullWidth
               active={pendingWeek === opt.value}
               onPress={() => { setPendingWeek(opt.value); setWeekStartsOn(opt.value); }}
+            >
+              {t(opt.labelKey)}
+            </Chip>
+          ))}
+        </Stack>
+      </Stack>
+
+      <Stack card gap={12} padding={16} hAlign="stretch" style={cardOuter}>
+        <Typography variant="body1">{t('settings.monthEventDisplay')}</Typography>
+        <Stack direction="horizontal" gap={8}>
+          {MONTH_EVENT_DISPLAY_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value}
+              fullWidth
+              active={monthEventDisplay === opt.value}
+              onPress={() => setMonthEventDisplay(opt.value)}
             >
               {t(opt.labelKey)}
             </Chip>

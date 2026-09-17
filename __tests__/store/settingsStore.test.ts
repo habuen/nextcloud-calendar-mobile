@@ -37,4 +37,15 @@ describe('settingsStore', () => {
     useSettingsStore.getState().setThemePreference('dark');
     expect(useSettingsStore.getState().themePreference).toBe('dark');
   });
+
+  it('defaults monthEventDisplay to bars', () => {
+    expect(useSettingsStore.getState().monthEventDisplay).toBe('bars');
+  });
+
+  it('setMonthEventDisplay switches to dots and back', () => {
+    useSettingsStore.getState().setMonthEventDisplay('dots');
+    expect(useSettingsStore.getState().monthEventDisplay).toBe('dots');
+    useSettingsStore.getState().setMonthEventDisplay('bars');
+    expect(useSettingsStore.getState().monthEventDisplay).toBe('bars');
+  });
 });

@@ -6,6 +6,7 @@ import type { AllDayAlert, TimedAlert } from '@/features/notifications/alerts';
 import type { TalkOpenMode } from '@/types';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
+export type MonthEventDisplay = 'bars' | 'dots';
 
 interface SettingsState {
   themePreference: ThemePreference;
@@ -17,6 +18,7 @@ interface SettingsState {
   hapticsEnabled: boolean;
   reduceMotion: boolean;
   talkOpenMode: TalkOpenMode;
+  monthEventDisplay: MonthEventDisplay;
   setThemePreference: (pref: ThemePreference) => void;
   setLanguage: (lang: AppLanguage) => void;
   setWeekStartsOn: (v: 0 | 1) => void;
@@ -26,6 +28,7 @@ interface SettingsState {
   setHapticsEnabled: (v: boolean) => void;
   setReduceMotion: (v: boolean) => void;
   setTalkOpenMode: (v: TalkOpenMode) => void;
+  setMonthEventDisplay: (v: MonthEventDisplay) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -40,6 +43,7 @@ export const useSettingsStore = create<SettingsState>()(
       hapticsEnabled: true,
       reduceMotion: false,
       talkOpenMode: 'app',
+      monthEventDisplay: 'bars',
       setTimedAlert: (v) => set({ timedAlert: v }),
       setAllDayAlert: (v) => set({ allDayAlert: v }),
       setThemePreference: (pref) => set({ themePreference: pref }),
@@ -49,6 +53,7 @@ export const useSettingsStore = create<SettingsState>()(
       setHapticsEnabled: (v) => set({ hapticsEnabled: v }),
       setReduceMotion: (v) => set({ reduceMotion: v }),
       setTalkOpenMode: (v) => set({ talkOpenMode: v }),
+      setMonthEventDisplay: (v) => set({ monthEventDisplay: v }),
     }),
     {
       name: 'settings-store',
@@ -69,6 +74,7 @@ export const useSettingsStore = create<SettingsState>()(
         hapticsEnabled: state.hapticsEnabled,
         reduceMotion: state.reduceMotion,
         talkOpenMode: state.talkOpenMode,
+        monthEventDisplay: state.monthEventDisplay,
       }),
     }
   )
