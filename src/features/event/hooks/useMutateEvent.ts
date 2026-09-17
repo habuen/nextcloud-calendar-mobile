@@ -198,20 +198,26 @@ export function useCreateEvent(account: Account, calendars: CalendarMeta[]) {
         : [eventFromInput(uid, input, calendar, account)];
       await insertEvents(optimistic);
 
-      try {
-        const resolved = await resolveLocationAndDescription(account, input);
-        const timezone = resolveTimezone(account);
-        const ics = buildIcsForInput(uid, input, resolved.location, resolved.description, timezone);
-        await putEvent(account, calendar, uid, ics);
+      // The local write is done, so the screen can navigate away now — the
+      // CalDAV round-trip below (which can take a second or more) continues
+      // in the background and already reverts + alerts on its own on
+      // failure, so there's nothing left for the caller to wait on.
+      void (async () => {
+        try {
+          const resolved = await resolveLocationAndDescription(account, input);
+          const timezone = resolveTimezone(account);
+          const ics = buildIcsForInput(uid, input, resolved.location, resolved.description, timezone);
+          await putEvent(account, calendar, uid, ics);
 
-        const real = input.rrule
-          ? expandOccurrences(uid, input, calendar, account)
-          : [eventFromInput(uid, input, calendar, account, resolved)];
-        await insertEvents(real);
-      } catch (error) {
-        await removeWhere(account.id, (e) => seriesBaseUid(e.uid) === uid);
-        Alert.alert(i18n.t('event.errorCreateFailed'), describeMutationError(error));
-      }
+          const real = input.rrule
+            ? expandOccurrences(uid, input, calendar, account)
+            : [eventFromInput(uid, input, calendar, account, resolved)];
+          await insertEvents(real);
+        } catch (error) {
+          await removeWhere(account.id, (e) => seriesBaseUid(e.uid) === uid);
+          Alert.alert(i18n.t('event.errorCreateFailed'), describeMutationError(error));
+        }
+      })();
     }, [account, calendars]),
   );
 }
@@ -254,91 +260,96 @@ export function useUpdateEvent(account: Account, calendars: CalendarMeta[]) {
         });
       }
 
-      try {
-        const { location, description } = await resolveLocationAndDescription(account, input);
-        let timezone = resolveTimezone(account);
-        const scheduled = withServerOrganizer(input, event);
+      // The local write above is done, so the screen can navigate away now —
+      // the CalDAV round-trip below continues in the background and already
+      // reverts + alerts on its own on failure (see useCreateEvent).
+      void (async () => {
+        try {
+          const { location, description } = await resolveLocationAndDescription(account, input);
+          let timezone = resolveTimezone(account);
+          const scheduled = withServerOrganizer(input, event);
 
-        if (!event.isRecurring || scope === 'all') {
-          if (datesOnly) {
-            // Drag & drop only moves the event in time. Patch DTSTART/DTEND on
-            // the authoritative server copy so description, location, attendees
-            // and any other property are kept — never rebuilt from the local
-            // event, which the grid may hold only partially.
-            const masterIcs = await fetchEventIcs(account, event.href);
-            const tz = extractDtstartTzid(masterIcs) ?? timezone;
-            const sequence = extractSequence(masterIcs) + 1;
-            let newStart = input.dtstart;
-            let newEnd = input.dtend;
-            if (event.isRecurring) {
-              const bounds = extractDtstartDtend(masterIcs);
-              if (!bounds) throw new Error('Cannot read the series master to shift it');
-              newStart = new Date(bounds.dtstart.getTime() + deltaStart);
-              newEnd = new Date(bounds.dtend.getTime() + deltaEnd);
-            }
-            await updateEvent(account, event.href, shiftIcsDates(masterIcs, newStart, newEnd, tz, input.allDay, sequence));
-          } else {
-            let uid = event.uid;
-            let masterInput = scheduled;
-            let sequence = 0;
-            let preserved: string[] = [];
-            if (event.isRecurring) {
+          if (!event.isRecurring || scope === 'all') {
+            if (datesOnly) {
+              // Drag & drop only moves the event in time. Patch DTSTART/DTEND on
+              // the authoritative server copy so description, location, attendees
+              // and any other property are kept — never rebuilt from the local
+              // event, which the grid may hold only partially.
               const masterIcs = await fetchEventIcs(account, event.href);
-              timezone = extractDtstartTzid(masterIcs) ?? timezone;
-              sequence = extractSequence(masterIcs) + 1;
-              preserved = extractExtraVeventLines(masterIcs);
-              const bounds = extractDtstartDtend(masterIcs);
-              if (!bounds) throw new Error('Cannot read the series master to shift it');
-              uid = seriesBaseUid(event.uid);
-              masterInput = shiftedMasterInput(scheduled, bounds, deltaStart, deltaEnd);
+              const tz = extractDtstartTzid(masterIcs) ?? timezone;
+              const sequence = extractSequence(masterIcs) + 1;
+              let newStart = input.dtstart;
+              let newEnd = input.dtend;
+              if (event.isRecurring) {
+                const bounds = extractDtstartDtend(masterIcs);
+                if (!bounds) throw new Error('Cannot read the series master to shift it');
+                newStart = new Date(bounds.dtstart.getTime() + deltaStart);
+                newEnd = new Date(bounds.dtend.getTime() + deltaEnd);
+              }
+              await updateEvent(account, event.href, shiftIcsDates(masterIcs, newStart, newEnd, tz, input.allDay, sequence));
             } else {
-              try {
+              let uid = event.uid;
+              let masterInput = scheduled;
+              let sequence = 0;
+              let preserved: string[] = [];
+              if (event.isRecurring) {
                 const masterIcs = await fetchEventIcs(account, event.href);
+                timezone = extractDtstartTzid(masterIcs) ?? timezone;
                 sequence = extractSequence(masterIcs) + 1;
                 preserved = extractExtraVeventLines(masterIcs);
-              } catch (error) {
-                console.warn('[useUpdateEvent] failed to fetch master ics for sequence/extra lines:', error);
+                const bounds = extractDtstartDtend(masterIcs);
+                if (!bounds) throw new Error('Cannot read the series master to shift it');
+                uid = seriesBaseUid(event.uid);
+                masterInput = shiftedMasterInput(scheduled, bounds, deltaStart, deltaEnd);
+              } else {
+                try {
+                  const masterIcs = await fetchEventIcs(account, event.href);
+                  sequence = extractSequence(masterIcs) + 1;
+                  preserved = extractExtraVeventLines(masterIcs);
+                } catch (error) {
+                  console.warn('[useUpdateEvent] failed to fetch master ics for sequence/extra lines:', error);
+                }
               }
+              await updateEvent(account, event.href, buildIcsForInput(uid, masterInput, location, description, timezone, sequence, preserved));
             }
-            await updateEvent(account, event.href, buildIcsForInput(uid, masterInput, location, description, timezone, sequence, preserved));
+            if (!event.isRecurring && input.calendarId !== event.calendarId) {
+              const cal = calendars.find((c) => c.id === input.calendarId);
+              if (!cal) throw new Error('Target calendar not found');
+              await moveEvent(account, event.href, cal, event.uid);
+            }
+          } else if (scope === 'this') {
+            const slot = occurrenceSlot(event);
+            const masterIcs = await fetchEventIcs(account, event.href);
+            const exIcs = buildExceptionIcs({
+              uid: seriesBaseUid(event.uid), summary: input.summary, description, location,
+              dtstart: input.dtstart, dtend: input.dtend,
+              organizerEmail: scheduled.organizerEmail, organizerName: input.organizerName,
+              attendees: input.attendees, timezone, recurrenceId: slot,
+              sequence: extractSequence(masterIcs) + 1,
+              extraLines: extractExtraVeventLines(masterIcs),
+              color: input.color,
+            });
+            // Folded into the master's own object in one write: a RECURRENCE-ID
+            // override already replaces that occurrence on its own (no EXDATE
+            // needed), and a separate resource reusing the master's UID is
+            // liable to be rejected by the server — if that write then fails,
+            // an EXDATE written just before it would have deleted the
+            // occurrence with nothing to show in its place.
+            await updateEvent(account, event.href, upsertExceptionInMaster(masterIcs, exIcs));
+          } else if (scope === 'thisAndFollowing') {
+            const masterIcs = await fetchEventIcs(account, event.href);
+            const oneDayBefore = dayjs(occurrenceSlot(event)).subtract(1, 'day').endOf('day').toDate();
+            await updateEvent(account, event.href, truncateRruleUntil(masterIcs, oneDayBefore));
+            const cal = calendars.find((c) => c.id === event.calendarId) ?? calendars.find((c) => c.id === input.calendarId);
+            if (!cal) throw new Error('Calendar not found for new series');
+            const newUid = Crypto.randomUUID();
+            await putEvent(account, cal, newUid, buildIcsForInput(newUid, scheduled, location, description, timezone, 0, extractExtraVeventLines(masterIcs)));
           }
-          if (!event.isRecurring && input.calendarId !== event.calendarId) {
-            const cal = calendars.find((c) => c.id === input.calendarId);
-            if (!cal) throw new Error('Target calendar not found');
-            await moveEvent(account, event.href, cal, event.uid);
-          }
-        } else if (scope === 'this') {
-          const slot = occurrenceSlot(event);
-          const masterIcs = await fetchEventIcs(account, event.href);
-          const exIcs = buildExceptionIcs({
-            uid: seriesBaseUid(event.uid), summary: input.summary, description, location,
-            dtstart: input.dtstart, dtend: input.dtend,
-            organizerEmail: scheduled.organizerEmail, organizerName: input.organizerName,
-            attendees: input.attendees, timezone, recurrenceId: slot,
-            sequence: extractSequence(masterIcs) + 1,
-            extraLines: extractExtraVeventLines(masterIcs),
-            color: input.color,
-          });
-          // Folded into the master's own object in one write: a RECURRENCE-ID
-          // override already replaces that occurrence on its own (no EXDATE
-          // needed), and a separate resource reusing the master's UID is
-          // liable to be rejected by the server — if that write then fails,
-          // an EXDATE written just before it would have deleted the
-          // occurrence with nothing to show in its place.
-          await updateEvent(account, event.href, upsertExceptionInMaster(masterIcs, exIcs));
-        } else if (scope === 'thisAndFollowing') {
-          const masterIcs = await fetchEventIcs(account, event.href);
-          const oneDayBefore = dayjs(occurrenceSlot(event)).subtract(1, 'day').endOf('day').toDate();
-          await updateEvent(account, event.href, truncateRruleUntil(masterIcs, oneDayBefore));
-          const cal = calendars.find((c) => c.id === event.calendarId) ?? calendars.find((c) => c.id === input.calendarId);
-          if (!cal) throw new Error('Calendar not found for new series');
-          const newUid = Crypto.randomUUID();
-          await putEvent(account, cal, newUid, buildIcsForInput(newUid, scheduled, location, description, timezone, 0, extractExtraVeventLines(masterIcs)));
+        } catch (error) {
+          await restoreSeries(account.id, base, snapshot);
+          Alert.alert(i18n.t('event.errorUpdateFailed'), describeMutationError(error));
         }
-      } catch (error) {
-        await restoreSeries(account.id, base, snapshot);
-        Alert.alert(i18n.t('event.errorUpdateFailed'), describeMutationError(error));
-      }
+      })();
     }, [account, calendars]),
   );
 }
@@ -360,23 +371,28 @@ export function useDeleteEvent(account: Account) {
         removed = await removeWhere(account.id, (e) => e.uid === event.uid);
       }
 
-      try {
-        if (!event.isRecurring || scope === 'all') {
-          await deleteEvent(account, event.href);
-          return;
+      // The local removal above is done, so the screen can navigate away now
+      // — the CalDAV round-trip below continues in the background and
+      // already reverts + alerts on its own on failure (see useCreateEvent).
+      void (async () => {
+        try {
+          if (!event.isRecurring || scope === 'all') {
+            await deleteEvent(account, event.href);
+            return;
+          }
+          const timezone = resolveTimezone(account);
+          const masterIcs = await fetchEventIcs(account, event.href);
+          if (scope === 'this') {
+            await updateEvent(account, event.href, injectExdate(masterIcs, occurrenceSlot(event), timezone));
+          } else if (scope === 'thisAndFollowing') {
+            const oneDayBefore = dayjs(occurrenceSlot(event)).subtract(1, 'day').endOf('day').toDate();
+            await updateEvent(account, event.href, truncateRruleUntil(masterIcs, oneDayBefore));
+          }
+        } catch (error) {
+          await insertEvents(removed);
+          Alert.alert(i18n.t('event.errorDeleteFailed'), describeMutationError(error));
         }
-        const timezone = resolveTimezone(account);
-        const masterIcs = await fetchEventIcs(account, event.href);
-        if (scope === 'this') {
-          await updateEvent(account, event.href, injectExdate(masterIcs, occurrenceSlot(event), timezone));
-        } else if (scope === 'thisAndFollowing') {
-          const oneDayBefore = dayjs(occurrenceSlot(event)).subtract(1, 'day').endOf('day').toDate();
-          await updateEvent(account, event.href, truncateRruleUntil(masterIcs, oneDayBefore));
-        }
-      } catch (error) {
-        await insertEvents(removed);
-        Alert.alert(i18n.t('event.errorDeleteFailed'), describeMutationError(error));
-      }
+      })();
     }, [account]),
   );
 }
