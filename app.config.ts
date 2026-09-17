@@ -62,10 +62,9 @@ const config: ExpoConfig = {
 
     extra: {
         eas: {
-            projectId: 'b344d590-32ff-417f-8c5a-f8e453288f60',
+            projectId: '497e7b37-3b63-47f6-976a-971cc522a145',
         },
     },
-    owner: 'soluce',
 
     plugins: [
         './plugins/withAndroidNetworkSecurityConfig',
