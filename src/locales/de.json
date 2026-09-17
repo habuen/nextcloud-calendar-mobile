@@ -81,6 +81,8 @@
     "calendar": "Kalender",
     "noWritableCalendars": "Keine beschreibbaren Kalender auf diesem Konto verfügbar.",
     "calendarLockedRecurring": "Der Kalender kann für wiederkehrende Termine nicht geändert werden.",
+    "color": "Farbe",
+    "colorDefault": "Kalenderfarbe",
     "allDay": "Ganztägig",
     "start": "Beginn",
     "end": "Ende",

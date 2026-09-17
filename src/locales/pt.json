@@ -81,6 +81,8 @@
     "calendar": "Calendário",
     "noWritableCalendars": "Não há calendários com permissão de escrita nesta conta.",
     "calendarLockedRecurring": "O calendário não pode ser alterado em eventos recorrentes.",
+    "color": "Cor",
+    "colorDefault": "Cor do calendário",
     "allDay": "Dia inteiro",
     "start": "Início",
     "end": "Fim",

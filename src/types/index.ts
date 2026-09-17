@@ -58,6 +58,8 @@ export type CalendarEvent = {
   dtend: Date;
   allDay: boolean;
   color: string;
+  /** The literal CSS3 keyword this event's own `COLOR` property carries, if any. `color` is already resolved to a hex from it; this is kept only so an edit form can preselect the right swatch. */
+  colorName?: string;
   attendees: Attendee[];
   organizerEmail?: string;
   talkUrl?: string;
@@ -84,6 +86,8 @@ export type CreateEventInput = {
   organizerName: string;
   rrule?: RecurrenceRule;
   alarmMinutes?: number;
+  /** CSS3 colour keyword to write as this event's own `COLOR` property. Undefined inherits the calendar's colour. */
+  color?: string;
 };
 
 export type CalendarAppStatus = 'unknown' | 'available' | 'unconfigured';

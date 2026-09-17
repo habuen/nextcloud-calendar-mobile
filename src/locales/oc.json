@@ -81,6 +81,8 @@
     "calendar": "Calendari",
     "noWritableCalendars": "Pas de calendari modificable disponible sus aqueste compte.",
     "calendarLockedRecurring": "Lo calendari pòt pas èsser cambiat per d'eveniments recurrents.",
+    "color": "Color",
+    "colorDefault": "Color del calendari",
     "allDay": "Jorn entièr",
     "start": "Debuta",
     "end": "Fin",

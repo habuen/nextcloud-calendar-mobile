@@ -103,6 +103,16 @@ describe('buildIcs', () => {
     const ics = buildIcs({ ...base, location: '' });
     expect(ics).not.toContain('LOCATION');
   });
+
+  it('writes COLOR when set', () => {
+    const ics = buildIcs({ ...base, color: 'royalblue' });
+    expect(ics).toContain('COLOR:royalblue\r\n');
+  });
+
+  it('omits COLOR when unset', () => {
+    const ics = buildIcs(base);
+    expect(ics).not.toContain('COLOR');
+  });
 });
 
 describe('buildAllDayIcs', () => {
@@ -144,6 +154,11 @@ describe('buildAllDayIcs', () => {
   it('writes COUNT unchanged for all-day series', () => {
     const ics = buildAllDayIcs({ ...allDayBase, rrule: { freq: 'DAILY', count: 5 } });
     expect(ics).toContain('RRULE:FREQ=DAILY;COUNT=5\r\n');
+  });
+
+  it('writes COLOR when set', () => {
+    const ics = buildAllDayIcs({ ...allDayBase, color: 'tomato' });
+    expect(ics).toContain('COLOR:tomato\r\n');
   });
 });
 

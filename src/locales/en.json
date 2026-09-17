@@ -81,6 +81,8 @@
     "calendar": "Calendar",
     "noWritableCalendars": "No writable calendars available on this account.",
     "calendarLockedRecurring": "Calendar can't be changed for recurring events.",
+    "color": "Color",
+    "colorDefault": "Calendar default",
     "allDay": "All Day",
     "start": "Start",
     "end": "End",

@@ -81,6 +81,8 @@
     "calendar": "Agenda",
     "noWritableCalendars": "Aucun agenda modifiable disponible sur ce compte.",
     "calendarLockedRecurring": "L'agenda ne peut pas être modifié pour les événements récurrents.",
+    "color": "Couleur",
+    "colorDefault": "Couleur de l'agenda",
     "allDay": "Toute la journée",
     "start": "Début",
     "end": "Fin",

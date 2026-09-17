@@ -125,6 +125,32 @@ describe('parseIcsObjects', () => {
     expect(event.color).toBe('#0082c9');
   });
 
+  it('falls back to the calendar color when the event has no COLOR', () => {
+    const [event] = parseIcsObjects([{ ics: sampleIcs, href: '/cal/event.ics' }], calMeta);
+    expect(event.color).toBe('#0082c9');
+    expect(event.colorName).toBeUndefined();
+  });
+
+  it('prefers a per-event COLOR (CSS3 keyword) over the calendar color', () => {
+    const ics = sampleIcs.replace('END:VEVENT', 'COLOR:royalblue\r\nEND:VEVENT');
+    const [event] = parseIcsObjects([{ ics, href: '/cal/event.ics' }], calMeta);
+    expect(event.color).toBe('#4169e1');
+    expect(event.colorName).toBe('royalblue');
+  });
+
+  it('accepts a #rrggbb COLOR written by another client, without a colorName', () => {
+    const ics = sampleIcs.replace('END:VEVENT', 'COLOR:#ff6347\r\nEND:VEVENT');
+    const [event] = parseIcsObjects([{ ics, href: '/cal/event.ics' }], calMeta);
+    expect(event.color).toBe('#ff6347');
+    expect(event.colorName).toBeUndefined();
+  });
+
+  it('ignores an unrecognized COLOR value and falls back to the calendar color', () => {
+    const ics = sampleIcs.replace('END:VEVENT', 'COLOR:not-a-color\r\nEND:VEVENT');
+    const [event] = parseIcsObjects([{ ics, href: '/cal/event.ics' }], calMeta);
+    expect(event.color).toBe('#0082c9');
+  });
+
   it('handles multiple ICS strings', () => {
     const events = parseIcsObjects([{ ics: sampleIcs, href: '/cal/s.ics' }, { ics: allDayIcs, href: '/cal/a.ics' }], calMeta);
     expect(events).toHaveLength(2);

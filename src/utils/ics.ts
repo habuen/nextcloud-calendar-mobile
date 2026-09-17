@@ -73,6 +73,10 @@ function textLines(summary: string, description: string, location: string): stri
     ];
 }
 
+function colorLine(color?: string): string[] {
+    return color ? [`COLOR:${color}`] : [];
+}
+
 function alarmLines(alarmMinutes?: number): string[] {
     if (alarmMinutes === undefined) return [];
     return [
@@ -126,6 +130,7 @@ export interface BuildIcsParams extends ExtraLines {
     rrule?: RecurrenceRule;
     alarmMinutes?: number;
     sequence?: number;
+    color?: string;
 }
 
 export function buildIcs(params: BuildIcsParams): string {
@@ -143,7 +148,8 @@ export function buildIcs(params: BuildIcsParams): string {
         rrule,
         alarmMinutes,
         sequence = 0,
-        extraLines = []
+        extraLines = [],
+        color,
     } = params;
 
     return serialize([
@@ -155,6 +161,7 @@ export function buildIcs(params: BuildIcsParams): string {
         ...textLines(summary, description, location),
         ...(rrule ? [rruleLine(rrule)] : []),
         ...schedulingLines(organizerName, organizerEmail, attendees),
+        ...colorLine(color),
         ...extraLines,
         ...alarmLines(alarmMinutes),
     ]);
@@ -176,7 +183,8 @@ export function buildAllDayIcs(params: BuildAllDayIcsParams): string {
         rrule,
         alarmMinutes,
         sequence = 0,
-        extraLines = []
+        extraLines = [],
+        color,
     } = params;
     const endExclusive = new Date(dtend.getFullYear(), dtend.getMonth(), dtend.getDate() + 1);
 
@@ -189,6 +197,7 @@ export function buildAllDayIcs(params: BuildAllDayIcsParams): string {
         ...textLines(summary, description, location),
         ...(rrule ? [rruleLine(rrule, true)] : []),
         ...schedulingLines(organizerName, organizerEmail, attendees),
+        ...colorLine(color),
         ...extraLines,
         ...alarmLines(alarmMinutes),
     ]);
@@ -209,7 +218,8 @@ export function buildExceptionIcs(params: BuildIcsParams & { recurrenceId: Date 
         recurrenceId,
         alarmMinutes,
         sequence = 0,
-        extraLines = []
+        extraLines = [],
+        color,
     } = params;
 
     return serialize([
@@ -221,6 +231,7 @@ export function buildExceptionIcs(params: BuildIcsParams & { recurrenceId: Date 
         `DTEND;TZID=${timezone}:${localStamp(dtend, timezone)}`,
         ...textLines(summary, description, location),
         ...schedulingLines(organizerName, organizerEmail, attendees),
+        ...colorLine(color),
         ...extraLines,
         ...alarmLines(alarmMinutes),
     ]);

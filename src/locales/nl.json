@@ -81,6 +81,8 @@
     "calendar": "Agenda",
     "noWritableCalendars": "Geen beschrijfbare agenda's beschikbaar op dit account.",
     "calendarLockedRecurring": "Agenda kan niet worden gewijzigd voor terugkerende afspraken.",
+    "color": "Kleur",
+    "colorDefault": "Agendakleur",
     "allDay": "Hele dag",
     "start": "Begin",
     "end": "Einde",

@@ -3,6 +3,7 @@ import type { CalendarEvent, Attendee } from '@/types';
 import { yieldToUI } from '@/utils/scheduling';
 import { isValidTimeZone, zonedWallTimeToUtc } from '@/utils/timezone';
 import { triggerToMinutes } from '@/features/notifications/alerts';
+import { cssColorNameToHex } from '@/utils/eventColors';
 
 interface ParseCalMeta {
   calendarId: string;
@@ -58,9 +59,27 @@ function organizerEmailOf(vevent: ICAL.Component): string | undefined {
   return prop ? (prop.getFirstValue() as string).replace(/^mailto:/i, '') : undefined;
 }
 
+/**
+ * A per-event `COLOR:` (RFC 7986), if the component carries a recognisable
+ * one. Accepts both the RFC's CSS3 keywords (`COLOR:tomato`) and the `#rrggbb`
+ * hex some other CalDAV clients write in practice; anything else is ignored
+ * rather than guessed at, and the caller falls back to the calendar's colour.
+ */
+function parseEventColor(component: ICAL.Component): { color: string; colorName?: string } | undefined {
+  const raw = component.getFirstPropertyValue('color');
+  if (typeof raw !== 'string') return undefined;
+  const value = raw.trim();
+  if (!value) return undefined;
+  if (value.startsWith('#')) {
+    return /^#[0-9a-fA-F]{6}$/.test(value) ? { color: value } : undefined;
+  }
+  const hex = cssColorNameToHex(value);
+  return hex ? { color: hex, colorName: value.toLowerCase() } : undefined;
+}
+
 type OverridableFields = Pick<
   CalendarEvent,
-  'summary' | 'description' | 'location' | 'talkUrl' | 'attendees' | 'organizerEmail' | 'alarmMinutes'
+  'summary' | 'description' | 'location' | 'talkUrl' | 'attendees' | 'organizerEmail' | 'alarmMinutes' | 'color' | 'colorName'
 >;
 
 function exceptionFields(vevent: ICAL.Component): Partial<OverridableFields> {
@@ -85,6 +104,12 @@ function exceptionFields(vevent: ICAL.Component): Partial<OverridableFields> {
 
   const alarmMinutes = firstAlarmMinutes(vevent);
   if (alarmMinutes !== undefined) fields.alarmMinutes = alarmMinutes;
+
+  const colorInfo = parseEventColor(vevent);
+  if (colorInfo) {
+    fields.color = colorInfo.color;
+    fields.colorName = colorInfo.colorName;
+  }
 
   return fields;
 }
@@ -210,7 +235,7 @@ function parseVtodo(
     dtstart,
     dtend,
     allDay,
-    color: meta.color,
+    ...(parseEventColor(vtodo) ?? { color: meta.color }),
     attendees: [],
     isRecurring: false,
     alarmMinutes: firstAlarmMinutes(vtodo),
@@ -275,7 +300,7 @@ export function parseIcsItem(
         description: icalEvent.description ?? undefined,
         location,
         allDay: icalEvent.startDate.isDate,
-        color: meta.color,
+        ...(parseEventColor(vevent) ?? { color: meta.color }),
         attendees,
         organizerEmail,
         talkUrl,

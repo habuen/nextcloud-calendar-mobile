@@ -81,6 +81,8 @@
     "calendar": "Calendario",
     "noWritableCalendars": "Nessun calendario modificabile disponibile su questo account.",
     "calendarLockedRecurring": "Il calendario non può essere modificato per gli eventi ricorrenti.",
+    "color": "Colore",
+    "colorDefault": "Colore del calendario",
     "allDay": "Tutto il giorno",
     "start": "Inizio",
     "end": "Fine",

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, Platform, KeyboardAvoidingView, useWindowDimensions, LayoutChangeEvent } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { Check } from 'lucide-react-native';
 import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +11,8 @@ import { AttendeesField } from './AttendeesField';
 import { requestAlertPermission } from '@/features/notifications/scheduleAlerts';
 import { AlertPicker } from './AlertPicker';
 import { RecurrencePicker } from './RecurrencePicker';
-import { Stack, Typography, TextField, DateField, Button, Chip, Toggle } from '@/ui/components';
+import { Stack, Typography, TextField, DateField, Button, Chip, Toggle, AnimatedPressable } from '@/ui/components';
+import { EVENT_COLOR_PALETTE } from '@/utils/eventColors';
 import type { CalendarMeta, Attendee, CreateEventInput, RecurrenceRule, TalkRoomType, Account } from '@/types';
 
 dayjs.extend(localizedFormat);
@@ -26,6 +28,7 @@ interface InitialValues {
   attendees?: Attendee[];
   rrule?: RecurrenceRule;
   alarmMinutes?: number;
+  color?: string;
 }
 
 interface Props {
@@ -63,6 +66,7 @@ export function EventForm({
     writableCalendars.find((c) => c.slug.toLowerCase() === 'personal')?.id ??
     writableCalendars[0]?.id ?? '';
   const [calendarId, setCalendarId] = useState(defaultCalendarId);
+  const [color, setColor] = useState<string | undefined>(initialValues?.color);
   const [allDay, setAllDay] = useState(initialValues?.allDay ?? false);
   const [dtstart, setDtstart] = useState(initialValues?.dtstart ?? defaultDate ?? new Date());
   const [dtend, setDtend] = useState(
@@ -186,9 +190,11 @@ export function EventForm({
     onSubmit({
       summary: summary.trim(), calendarId, dtstart, dtend, allDay,
       description, location, attendees, withTalkRoom, talkRoomType,
-      organizerEmail, organizerName, rrule, alarmMinutes,
+      organizerEmail, organizerName, rrule, alarmMinutes, color,
     });
   }
+
+  const selectedCalendar = writableCalendars.find((c) => c.id === calendarId);
 
   const startBlock = (
     <View style={twoColDates ? styles.grow : undefined}>
@@ -296,6 +302,43 @@ export function EventForm({
           )}
         </Stack>
 
+        <Stack gap={8}>
+          <Typography variant="body2" color="secondary">{t('event.color')}</Typography>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            <AnimatedPressable
+              accessibilityRole="button"
+              accessibilityLabel={t('event.colorDefault')}
+              onPress={() => setColor(undefined)}
+              style={[
+                styles.swatch,
+                {
+                  backgroundColor: selectedCalendar?.color ?? theme.colors.chipActive,
+                  borderColor: color === undefined ? theme.colors.text : 'transparent',
+                },
+              ]}
+            >
+              {color === undefined && <Check size={16} color="#ffffff" />}
+            </AnimatedPressable>
+            {EVENT_COLOR_PALETTE.map((option) => (
+              <AnimatedPressable
+                key={option.name}
+                accessibilityRole="button"
+                accessibilityLabel={option.name}
+                onPress={() => setColor(option.name)}
+                style={[
+                  styles.swatch,
+                  {
+                    backgroundColor: option.hex,
+                    borderColor: color === option.name ? theme.colors.text : 'transparent',
+                  },
+                ]}
+              >
+                {color === option.name && <Check size={16} color="#ffffff" />}
+              </AnimatedPressable>
+            ))}
+          </ScrollView>
+        </Stack>
+
         <Stack direction="horizontal" vAlign="center" hAlign="center">
           <Typography variant="body2" color="secondary">{t('event.allDay')}</Typography>
           <View style={styles.pushRight}>
@@ -392,6 +435,14 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 40 },
   multiline: { height: 80, textAlignVertical: 'top' },
   chipRow: { gap: 8 },
+  swatch: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   grow: { flex: 1 },
   pushRight: { marginLeft: 'auto' },
   iosPickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
