@@ -81,6 +81,35 @@ describe('useCalendarNavigation', () => {
     expect(result.current.anchorDate).toEqual(swiped);
   });
 
+  it('goToDay switches to day view anchored on the date it was given', () => {
+    const { result } = renderHook(() => useCalendarNavigation());
+    const tapped = new Date('2026-08-12T00:00:00Z');
+
+    act(() => { result.current.goToDay(tapped); });
+
+    expect(result.current.viewMode).toBe('day');
+    expect(result.current.date).toEqual(tapped);
+    expect(result.current.anchorDate).toEqual(tapped);
+  });
+
+  it('goToDay uses the date it was given, not whatever date was current a moment earlier in the same handler', () => {
+    // Regression guard: switchMode reads `date` through a ref that only
+    // updates on the next render, so a caller doing setDate(d) then
+    // switchMode('day') in one synchronous handler would anchor on the
+    // stale pre-tap date. goToDay takes the date directly instead.
+    const { result } = renderHook(() => useCalendarNavigation());
+    const staleDate = new Date('2026-02-01T00:00:00Z');
+    const tapped = new Date('2026-08-12T00:00:00Z');
+
+    act(() => {
+      result.current.setDate(staleDate);
+      result.current.goToDay(tapped);
+    });
+
+    expect(result.current.date).toEqual(tapped);
+    expect(result.current.anchorDate).toEqual(tapped);
+  });
+
   it('goToday returns the date to now and publishes it as a jump', () => {
     const { result } = renderHook(() => useCalendarNavigation());
     const anchorBefore = result.current.anchorDate;

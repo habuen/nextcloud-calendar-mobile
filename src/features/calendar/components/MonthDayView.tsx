@@ -1,11 +1,9 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, FlatList, StyleSheet,
-  useWindowDimensions,
+  View, Text, TouchableOpacity, StyleSheet, Dimensions, type LayoutChangeEvent,
 } from 'react-native';
 import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
-import { useTranslation } from 'react-i18next';
 import { useTheme } from 'expo-router';
 import InfinitePager, { type InfinitePagerImperativeApi } from 'react-native-infinite-pager';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -155,6 +153,9 @@ function textColorFor(bgHex: string): string {
 const DOW_ROW_HEIGHT = 26;
 const DAY_NUMBER_ROW_HEIGHT = 34;
 const LANE_HEIGHT = 15;
+// Rough guess at the chrome above the grid (top bar, safe area, offline
+// banner) for a synchronous first-frame estimate — see its one use below.
+const ESTIMATED_CHROME_HEIGHT = 130;
 
 interface MonthGridProps {
   weeks: (dayjs.Dayjs | null)[][];
@@ -165,6 +166,7 @@ interface MonthGridProps {
   colors: ReturnType<typeof useTheme>['colors'];
   onDayPress: (d: dayjs.Dayjs) => void;
   onPressCell: (d: Date) => void;
+  onPressEvent: (e: CalendarEvent) => void;
 }
 
 // Events covering any of this week's (non-null) days, deduped by uid. Scoping
@@ -184,13 +186,14 @@ function weekCandidates(week: (dayjs.Dayjs | null)[], eventsByDay: Map<string, C
 // One month's 6-week grid. Rendered per pager page so a horizontal swipe slides a
 // full month in and out under the finger instead of the old swipe-then-jump.
 const MonthGrid = memo(function MonthGrid({
-  weeks, selected, today, eventsByDay, pagerHeight, colors, onDayPress, onPressCell,
+  weeks, selected, today, eventsByDay, pagerHeight, colors, onDayPress, onPressCell, onPressEvent,
 }: MonthGridProps) {
-  // Known synchronously from pagerHeight (derived from gridHeight up in
-  // MonthDayViewImpl) rather than measured, so the lane count is right from
-  // this page's very first render — see the comment on the constants above.
-  const rowHeight = pagerHeight / weeks.length;
-  const rawMaxLanes = Math.max(0, Math.floor((rowHeight - DAY_NUMBER_ROW_HEIGHT) / LANE_HEIGHT));
+  // pagerHeight is a synchronous estimate on this page's very first render,
+  // corrected in place once MonthDayViewImpl's own container is measured —
+  // see its comment. Either way it's a plain number by the time it gets
+  // here, so a page's own lane count is synchronous — see the comment on
+  // the constants above for why that still matters.
+  const rawMaxLanes = Math.max(0, Math.floor((pagerHeight / weeks.length - DAY_NUMBER_ROW_HEIGHT) / LANE_HEIGHT));
 
   const weekLanes = useMemo(
     () => weeks.map((week) => assignLanes(buildWeekSegments(week, weekCandidates(week, eventsByDay)))),
@@ -238,6 +241,7 @@ const MonthGrid = memo(function MonthGrid({
                 return (
                   <TouchableOpacity
                     key={di}
+                    testID={isSelected ? `day-selected-${d.format('YYYY-MM-DD')}` : undefined}
                     style={styles.numberCell}
                     onPress={() => onDayPress(d)}
                     onLongPress={() => onPressCell(d.toDate())}
@@ -290,7 +294,7 @@ const MonthGrid = memo(function MonthGrid({
                       <TouchableOpacity
                         key={ci}
                         style={[styles.eventBar, { flex: span, backgroundColor: cell.event.color }]}
-                        onPress={() => onDayPress(segStart)}
+                        onPress={() => onPressEvent(cell.event)}
                         onLongPress={() => onPressCell(segStart.toDate())}
                       >
                         <Text numberOfLines={1} style={[styles.eventBarText, { color: textColorFor(cell.event.color) }]}>
@@ -365,6 +369,7 @@ const MonthGridDots = memo(function MonthGridDots({
             return (
               <TouchableOpacity
                 key={di}
+                testID={isSelected ? `day-selected-${key}` : undefined}
                 style={styles.dayCell}
                 onPress={() => onDayPress(d)}
                 onLongPress={() => onPressCell(d.toDate())}
@@ -404,10 +409,8 @@ const MonthGridDots = memo(function MonthGridDots({
 
 function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMonthChange, onPressEvent, onPressCell }: Props) {
   const theme = useTheme();
-  const { t } = useTranslation();
   const language = useSettingsStore((s) => s.language);
   const monthEventDisplay = useSettingsStore((s) => s.monthEventDisplay);
-  const { height } = useWindowDimensions();
 
   const selected = useMemo(() => dayjs(date), [date]);
 
@@ -422,13 +425,6 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
     }
     return map;
   }, [events]);
-
-  const dayEvents = useMemo(() => {
-    const sel = selected.format('YYYY-MM-DD');
-    return events
-      .filter((e) => eventCoversDay(e, sel))
-      .sort((a, b) => a.dtstart.getTime() - b.dtstart.getTime());
-  }, [events, selected]);
 
   const todayKey = dayjs().format('YYYY-MM-DD');
   const today = useMemo(() => dayjs(todayKey), [todayKey]);
@@ -446,12 +442,21 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
     return headers;
   }, [weekStartsOn, language]);
 
-  // Bars mode gets the bulk of the screen since cells show event-bar lanes
-  // (not just a day number), which also means more room per row to fit
-  // lanes before collapsing into a "+N" overflow. Dots mode doesn't need
-  // that extra room, so it keeps the original split favoring the day list.
-  const gridHeight = height * (monthEventDisplay === 'dots' ? 0.44 : 0.6);
-  const pagerHeight = gridHeight - DOW_ROW_HEIGHT;
+  // The grid now fills the whole screen (no day list below it to size
+  // against), so its height comes from measuring the container instead of a
+  // fixed ratio. Seeded with a rough synchronous estimate so there's a
+  // sensible lane count from this component's very first render (avoiding
+  // the exact per-page flash MonthGrid's own comment describes), then
+  // corrected in place once the container's real onLayout lands a frame
+  // later — a one-time correction here, not a per-page one, so it isn't the
+  // repeated-on-every-swipe version of that same problem.
+  const [measuredGridHeight, setMeasuredGridHeight] = useState(
+    () => Dimensions.get('window').height - ESTIMATED_CHROME_HEIGHT,
+  );
+  const handleGridLayout = useCallback((e: LayoutChangeEvent) => {
+    setMeasuredGridHeight(e.nativeEvent.layout.height);
+  }, []);
+  const pagerHeight = measuredGridHeight - DOW_ROW_HEIGHT;
 
   // The pager pages by whole months: page `index` renders the month `index`
   // months from `localAnchor`. localAnchor is only reset on an external jump
@@ -541,16 +546,17 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
         colors={theme.colors}
         onDayPress={handleDayPress}
         onPressCell={onPressCell}
+        onPressEvent={onPressEvent}
       />
     );
   }, [
     localAnchor, weekStartsOn, monthEventDisplay, selected, today, eventsByDay, pagerHeight,
-    theme.colors, handleDayPress, onPressCell,
+    theme.colors, handleDayPress, onPressCell, onPressEvent,
   ]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.grid, { height: gridHeight, borderBottomColor: theme.colors.border }]}>
+      <View style={styles.grid} onLayout={handleGridLayout}>
         <View style={styles.dowRow}>
           {dayHeaders.map((d, i) => (
             <Text key={i} style={[styles.dowLabel, { color: theme.colors.textTertiary }]}>{d}</Text>
@@ -569,39 +575,6 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
           />
         </View>
       </View>
-
-      <View style={styles.dayList} testID="monthDayEventsList">
-        <Text style={[styles.dayListHeader, { color: theme.colors.textSecondary }]}>
-          {selected.locale(language).format('dddd, LL')}
-        </Text>
-        {dayEvents.length === 0 ? (
-          <Text style={[styles.emptyText, { color: theme.colors.textTertiary }]}>{t('calendar.noEvents')}</Text>
-        ) : (
-          <FlatList
-            data={dayEvents}
-            keyExtractor={(e, i) => `${e.calendarId}-${e.uid}-${e.dtstart.getTime()}-${i}`}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.eventRow, { borderLeftColor: item.color, backgroundColor: theme.colors.surface }]}
-                onPress={() => onPressEvent(item)}
-              >
-                <View style={[styles.eventColorBar, { backgroundColor: item.color }]} />
-                <View style={styles.eventInfo}>
-                  <Text style={[styles.eventTitle, { color: theme.colors.text }]} numberOfLines={1}>
-                    {item.summary}
-                  </Text>
-                  <Text style={[styles.eventTime, { color: theme.colors.textSecondary }]}>
-                    {item.allDay
-                      ? t('calendar.allDay')
-                      : `${dayjs(item.dtstart).locale(language).format('LT')} – ${dayjs(item.dtend).locale(language).format('LT')}`}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={{ paddingBottom: 16 }}
-          />
-        )}
-      </View>
     </View>
   );
 }
@@ -611,7 +584,7 @@ export const MonthDayView = memo(MonthDayViewImpl);
 const styles = StyleSheet.create({
   container: { flex: 1 },
   fill: { flex: 1 },
-  grid: { borderBottomWidth: StyleSheet.hairlineWidth },
+  grid: { flex: 1 },
   dowRow: { flexDirection: 'row', paddingVertical: 6 },
   dowLabel: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
   pagerWrap: { flex: 1 },
@@ -634,12 +607,4 @@ const styles = StyleSheet.create({
   overflowRow: { flexDirection: 'row', height: LANE_HEIGHT, marginTop: 1 },
   overflowCell: { flex: 1, alignItems: 'center' },
   overflowText: { fontSize: 9, fontWeight: '600' },
-  dayList: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
-  dayListHeader: { fontSize: 13, fontWeight: '600', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  emptyText: { fontSize: 15, textAlign: 'center', marginTop: 32 },
-  eventRow: { flexDirection: 'row', borderRadius: 8, marginBottom: 8, overflow: 'hidden' },
-  eventColorBar: { width: 4 },
-  eventInfo: { flex: 1, padding: 10 },
-  eventTitle: { fontSize: 15, fontWeight: '500' },
-  eventTime: { fontSize: 12, marginTop: 2 },
 });

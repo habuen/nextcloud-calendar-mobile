@@ -158,7 +158,7 @@ export default function CalendarScreen() {
             events={allEvents}
             weekStartsOn={deferredWeekStartsOn}
             jump={nav.jump}
-            onSelectDate={nav.setDate}
+            onSelectDate={nav.goToDay}
             onMonthChange={nav.onPageChange}
             onPressEvent={handlePressEventFromMonth}
             onPressCell={handlePressCell}
