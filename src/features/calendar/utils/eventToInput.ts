@@ -4,6 +4,7 @@ import { parseRrule } from './parseRrule';
 
 export function eventToInput(event: CalendarEvent, account: Account): CreateEventInput {
   const { organizerEmail, organizerName } = resolveOrganizer(account);
+  const rrule = parseRrule(event.rrule);
   return {
     summary: event.summary,
     calendarId: event.calendarId,
@@ -16,7 +17,12 @@ export function eventToInput(event: CalendarEvent, account: Account): CreateEven
     withTalkRoom: false,
     organizerEmail,
     organizerName,
-    rrule: parseRrule(event.rrule),
+    rrule,
+    // parseRrule only understands a subset of RRULE (no BYMONTHDAY, BYSETPOS,
+    // ...). When it can't represent the event's actual rule, fall back to the
+    // original line so a rebuilt ICS re-emits it verbatim instead of a
+    // rebuild silently turning the whole series into a one-time event.
+    rawRrule: !rrule && event.rrule ? event.rrule : undefined,
     alarmMinutes: event.alarmMinutes,
   };
 }

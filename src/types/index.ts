@@ -85,6 +85,8 @@ export type CreateEventInput = {
   organizerEmail: string;
   organizerName: string;
   rrule?: RecurrenceRule;
+  /** The original `RRULE:...` line, kept only when `rrule` failed to parse it (e.g. BYMONTHDAY, BYSETPOS) so a rebuild can re-emit the event's actual recurrence instead of silently dropping it. */
+  rawRrule?: string;
   alarmMinutes?: number;
   /** CSS3 colour keyword to write as this event's own `COLOR` property. Undefined inherits the calendar's colour. */
   color?: string;

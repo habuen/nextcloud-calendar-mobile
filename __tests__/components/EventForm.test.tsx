@@ -180,6 +180,70 @@ describe('EventForm recurrence end condition', () => {
   });
 });
 
+describe('EventForm rawRrule preservation', () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage('en');
+  });
+
+  it('carries rawRrule through untouched when the recurrence picker is never opened, so saving another field does not destroy an unparseable series', () => {
+    const onSubmit = jest.fn();
+    const { getByDisplayValue, getByText } = render(
+      <EventForm
+        {...baseProps}
+        onSubmit={onSubmit}
+        initialValues={{ summary: 'Standup', rawRrule: 'RRULE:FREQ=MONTHLY;BYMONTHDAY=15' }}
+      />
+    );
+
+    fireEvent.changeText(getByDisplayValue('Standup'), 'Standup v2');
+    fireEvent.press(getByText('Save Event'));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ rrule: undefined, rawRrule: 'RRULE:FREQ=MONTHLY;BYMONTHDAY=15' })
+    );
+  });
+
+  it('drops rawRrule once the user picks a new recurrence, so it cannot resurrect the old series', () => {
+    const onSubmit = jest.fn();
+    const { getByText, getByLabelText } = render(
+      <EventForm
+        {...baseProps}
+        onSubmit={onSubmit}
+        initialValues={{ summary: 'Standup', rawRrule: 'RRULE:FREQ=MONTHLY;BYMONTHDAY=15' }}
+      />
+    );
+
+    fireEvent.press(getByLabelText('Repeat'));
+    fireEvent.press(getByText('Weekly'));
+    fireEvent.press(getByText('Save Event'));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ rawRrule: undefined })
+    );
+  });
+
+  it('keeps rawRrule cleared even if the user picks a new freq and then explicitly turns recurrence back off', () => {
+    const onSubmit = jest.fn();
+    const { getByText, getByLabelText } = render(
+      <EventForm
+        {...baseProps}
+        onSubmit={onSubmit}
+        initialValues={{ summary: 'Standup', rawRrule: 'RRULE:FREQ=MONTHLY;BYMONTHDAY=15' }}
+      />
+    );
+
+    fireEvent.press(getByLabelText('Repeat'));
+    fireEvent.press(getByText('Weekly'));
+    fireEvent.press(getByLabelText('Repeat'));
+    fireEvent.press(getByText('None'));
+    fireEvent.press(getByText('Save Event'));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ rrule: undefined, rawRrule: undefined })
+    );
+  });
+});
+
 describe('EventForm contact suggestions', () => {
   const account = {
     id: 'acc-1',

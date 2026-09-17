@@ -14,10 +14,10 @@ describe('decideMoveEventScope', () => {
     ).toEqual({ kind: 'prompt' });
   });
 
-  it('commits with scope "this" and does not prompt when the rule cannot round-trip', () => {
+  it('still prompts for a recurring event whose rule cannot be fully parsed (safe now that the raw rule is preserved on save)', () => {
     expect(
       decideMoveEventScope({ isRecurring: true, rrule: 'RRULE:FREQ=MONTHLY;BYMONTHDAY=15' }),
-    ).toEqual({ kind: 'commit', scope: 'this' });
+    ).toEqual({ kind: 'prompt' });
   });
 
   it('commits with scope "this" when a recurring event has no rrule string at all', () => {

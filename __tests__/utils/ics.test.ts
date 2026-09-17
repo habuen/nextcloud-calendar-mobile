@@ -226,6 +226,34 @@ describe('rruleLine end conditions', () => {
   });
 });
 
+describe('rawRrule fallback', () => {
+  it('re-emits the original line verbatim when rrule could not represent it, instead of dropping recurrence', () => {
+    const ics = buildIcs({ ...base, rrule: undefined, rawRrule: 'RRULE:FREQ=MONTHLY;BYMONTHDAY=15' });
+    expect(ics).toContain('RRULE:FREQ=MONTHLY;BYMONTHDAY=15\r\n');
+  });
+
+  it('adds a missing RRULE: prefix defensively', () => {
+    const ics = buildIcs({ ...base, rrule: undefined, rawRrule: 'FREQ=MONTHLY;BYSETPOS=-1;BYDAY=FR' });
+    expect(ics).toContain('RRULE:FREQ=MONTHLY;BYSETPOS=-1;BYDAY=FR\r\n');
+  });
+
+  it('prefers the structured rrule over rawRrule when both are present', () => {
+    const ics = buildIcs({ ...base, rrule: { freq: 'WEEKLY' }, rawRrule: 'RRULE:FREQ=MONTHLY;BYMONTHDAY=15' });
+    expect(ics).toContain('RRULE:FREQ=WEEKLY\r\n');
+    expect(ics).not.toContain('BYMONTHDAY');
+  });
+
+  it('omits RRULE entirely when neither rrule nor rawRrule is set', () => {
+    const ics = buildIcs({ ...base, rrule: undefined, rawRrule: undefined });
+    expect(ics).not.toContain('RRULE');
+  });
+
+  it('also applies to all-day events', () => {
+    const ics = buildAllDayIcs({ ...allDayBase, rrule: undefined, rawRrule: 'RRULE:FREQ=MONTHLY;BYMONTHDAY=15' });
+    expect(ics).toContain('RRULE:FREQ=MONTHLY;BYMONTHDAY=15\r\n');
+  });
+});
+
 const VTIMEZONE_PARIS = [
   'BEGIN:VTIMEZONE',
   'TZID:Europe/Paris',

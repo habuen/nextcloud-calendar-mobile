@@ -65,6 +65,17 @@ function rruleLine(rule: RecurrenceRule, allDay = false): string {
     return `RRULE:${parts.join(';')}`;
 }
 
+// `rrule` wins when present (parsed successfully); `rawRrule` is the original
+// `RRULE:...` line, used when the app couldn't parse it into `rrule` (see
+// CreateEventInput.rawRrule) so it can still be re-emitted unchanged instead
+// of silently dropped, which would turn a recurring series into a one-time
+// event on save.
+function rruleLines(rule: RecurrenceRule | undefined, rawRrule: string | undefined, allDay = false): string[] {
+    if (rule) return [rruleLine(rule, allDay)];
+    if (rawRrule) return [rawRrule.trim().toUpperCase().startsWith('RRULE:') ? rawRrule.trim() : `RRULE:${rawRrule.trim()}`];
+    return [];
+}
+
 function textLines(summary: string, description: string, location: string): string[] {
     return [
         `SUMMARY:${esc(summary)}`,
@@ -128,6 +139,7 @@ export interface BuildIcsParams extends ExtraLines {
     attendees: Attendee[];
     timezone: string;
     rrule?: RecurrenceRule;
+    rawRrule?: string;
     alarmMinutes?: number;
     sequence?: number;
     color?: string;
@@ -146,6 +158,7 @@ export function buildIcs(params: BuildIcsParams): string {
         attendees,
         timezone,
         rrule,
+        rawRrule,
         alarmMinutes,
         sequence = 0,
         extraLines = [],
@@ -159,7 +172,7 @@ export function buildIcs(params: BuildIcsParams): string {
         `DTSTART;TZID=${timezone}:${localStamp(dtstart, timezone)}`,
         `DTEND;TZID=${timezone}:${localStamp(dtend, timezone)}`,
         ...textLines(summary, description, location),
-        ...(rrule ? [rruleLine(rrule)] : []),
+        ...rruleLines(rrule, rawRrule),
         ...schedulingLines(organizerName, organizerEmail, attendees),
         ...colorLine(color),
         ...extraLines,
@@ -181,6 +194,7 @@ export function buildAllDayIcs(params: BuildAllDayIcsParams): string {
         organizerName,
         attendees,
         rrule,
+        rawRrule,
         alarmMinutes,
         sequence = 0,
         extraLines = [],
@@ -195,7 +209,7 @@ export function buildAllDayIcs(params: BuildAllDayIcsParams): string {
         `DTSTART;VALUE=DATE:${dateStamp(dtstart)}`,
         `DTEND;VALUE=DATE:${dateStamp(endExclusive)}`,
         ...textLines(summary, description, location),
-        ...(rrule ? [rruleLine(rrule, true)] : []),
+        ...rruleLines(rrule, rawRrule, true),
         ...schedulingLines(organizerName, organizerEmail, attendees),
         ...colorLine(color),
         ...extraLines,
