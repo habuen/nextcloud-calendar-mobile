@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { AppState } from 'react-native';
 import * as Network from 'expo-network';
 
 let online = true;
@@ -14,12 +15,26 @@ function set(value: boolean): void {
   listeners.forEach((l) => l());
 }
 
-export function setupOnlineManager(): () => void {
+function refresh(): void {
   Network.getNetworkStateAsync()
     .then((state) => set(isOnlineState(state)))
     .catch(() => undefined);
+}
+
+export function setupOnlineManager(): () => void {
+  refresh();
   const sub = Network.addNetworkStateListener((state) => set(isOnlineState(state)));
-  return () => sub.remove();
+  // Android can freeze a backgrounded app's native listeners under battery
+  // optimization/Doze, so a connectivity change that happens while backgrounded
+  // may never reach `sub` above. Re-checking on every return to the foreground
+  // stops the offline banner from getting stuck on a stale pre-freeze state.
+  const appStateSub = AppState.addEventListener('change', (status) => {
+    if (status === 'active') refresh();
+  });
+  return () => {
+    sub.remove();
+    appStateSub.remove();
+  };
 }
 
 export function getIsOnline(): boolean {
