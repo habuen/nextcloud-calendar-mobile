@@ -1,5 +1,5 @@
 import React from 'react';
-import { render as rtlRender, within } from '@testing-library/react-native';
+import { render as rtlRender, within, act } from '@testing-library/react-native';
 import { ThemeWrapper } from '../helpers/theme';
 import dayjs from 'dayjs';
 
@@ -7,6 +7,7 @@ const render = (ui: React.ReactElement, opts?: Parameters<typeof rtlRender>[1]) 
   rtlRender(ui, { wrapper: ThemeWrapper, ...opts });
 import 'dayjs/locale/fr';
 import { MonthDayView, buildMonthGrid, eventDayKeys, buildWeekSegments, assignLanes } from '@/features/calendar/components/MonthDayView';
+import { useSettingsStore } from '@/stores/settingsStore';
 import type { CalendarEvent } from '../../src/types';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -283,5 +284,24 @@ describe('buildWeekSegments / assignLanes (month grid event bars)', () => {
     const laneA = laned.find((s) => s.event.uid === 'a')!.lane;
     const laneB = laned.find((s) => s.event.uid === 'b')!.lane;
     expect(laneA).not.toBe(laneB);
+  });
+});
+
+describe('MonthDayView settings.monthEventDisplay', () => {
+  afterEach(() => {
+    act(() => { useSettingsStore.getState().setMonthEventDisplay('bars'); });
+  });
+
+  it('shows event titles as bars in the grid by default', () => {
+    // june10 is selected but the event is on june15 (same month) — bars mode
+    // shows the title in the grid regardless of which day is selected.
+    expect(render(view(june10)).queryByText('Birthday Party')).toBeTruthy();
+  });
+
+  it('shows only colored dots, no event titles, when dots mode is selected', () => {
+    act(() => { useSettingsStore.getState().setMonthEventDisplay('dots'); });
+    const { queryByText, getAllByTestId } = render(view(june10));
+    expect(queryByText('Birthday Party')).toBeNull();
+    expect(getAllByTestId('month-event-dot').length).toBeGreaterThan(0);
   });
 });

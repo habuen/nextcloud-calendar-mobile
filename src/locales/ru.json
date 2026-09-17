@@ -195,6 +195,9 @@
     "weekStart": "Начало недели",
     "sunday": "Воскресенье",
     "monday": "Понедельник",
+    "monthEventDisplay": "События в виде месяца",
+    "monthEventDisplayBars": "Заголовки",
+    "monthEventDisplayDots": "Точки",
     "calendarZoom": "Масштаб календаря",
     "reset": "Сбросить",
     "zoom": {

@@ -331,10 +331,82 @@ const MonthGrid = memo(function MonthGrid({
   );
 });
 
+interface MonthGridDotsProps {
+  weeks: (dayjs.Dayjs | null)[][];
+  selected: dayjs.Dayjs;
+  today: dayjs.Dayjs;
+  eventsByDay: Map<string, CalendarEvent[]>;
+  colors: ReturnType<typeof useTheme>['colors'];
+  onDayPress: (d: dayjs.Dayjs) => void;
+  onPressCell: (d: Date) => void;
+}
+
+// The original, simpler month cell: a day number and up to 3 small colored
+// dots (one per distinct event color that day, no titles). Offered as a
+// lighter-weight alternative to MonthGrid's event-bar lanes via
+// settings.monthEventDisplay — no per-page height measurement needed since
+// every cell is the same fixed size regardless of how many events land on it.
+const MonthGridDots = memo(function MonthGridDots({
+  weeks, selected, today, eventsByDay, colors, onDayPress, onPressCell,
+}: MonthGridDotsProps) {
+  return (
+    <View style={styles.monthPage}>
+      {weeks.map((week, wi) => (
+        <View key={wi} style={styles.dotsWeekRow}>
+          {week.map((d, di) => {
+            if (d === null) {
+              return <View key={di} style={styles.dayCell} />;
+            }
+            const key = d.format('YYYY-MM-DD');
+            const isToday = d.isSame(today, 'day');
+            const isSelected = d.isSame(selected, 'day');
+            const dots = Array.from(new Set((eventsByDay.get(key) ?? []).map((e) => e.color))).slice(0, 3);
+
+            return (
+              <TouchableOpacity
+                key={di}
+                style={styles.dayCell}
+                onPress={() => onDayPress(d)}
+                onLongPress={() => onPressCell(d.toDate())}
+              >
+                <View style={[
+                  styles.dayCircle,
+                  { backgroundColor: isSelected ? colors.primary : 'transparent' },
+                  { borderWidth: isToday && !isSelected ? 1.5 : 0, borderColor: colors.primary },
+                ]}>
+                  <Text
+                    numberOfLines={1}
+                    allowFontScaling={false}
+                    style={[
+                      styles.dayNumber,
+                      { color: isSelected
+                        ? colors.primaryText
+                        : isToday
+                          ? colors.primary
+                          : colors.text, fontWeight: isSelected || isToday ? '700' : '400' },
+                    ]}>
+                    {d.date()}
+                  </Text>
+                </View>
+                <View style={styles.dotsRow}>
+                  {dots.map((color, ci) => (
+                    <View key={ci} testID="month-event-dot" style={[styles.dot, { backgroundColor: color }]} />
+                  ))}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+});
+
 function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMonthChange, onPressEvent, onPressCell }: Props) {
   const theme = useTheme();
   const { t } = useTranslation();
   const language = useSettingsStore((s) => s.language);
+  const monthEventDisplay = useSettingsStore((s) => s.monthEventDisplay);
   const { height } = useWindowDimensions();
 
   const selected = useMemo(() => dayjs(date), [date]);
@@ -374,7 +446,11 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
     return headers;
   }, [weekStartsOn, language]);
 
-  const gridHeight = height * 0.44;
+  // Bars mode gets the bulk of the screen since cells show event-bar lanes
+  // (not just a day number), which also means more room per row to fit
+  // lanes before collapsing into a "+N" overflow. Dots mode doesn't need
+  // that extra room, so it keeps the original split favoring the day list.
+  const gridHeight = height * (monthEventDisplay === 'dots' ? 0.44 : 0.6);
   const pagerHeight = gridHeight - DOW_ROW_HEIGHT;
 
   // The pager pages by whole months: page `index` renders the month `index`
@@ -445,7 +521,17 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
   const renderPage = useCallback(({ index }: { index: number }) => {
     const m = dayjs(localAnchor).add(index, 'month');
     const weeks = buildMonthGrid(m.year(), m.month(), weekStartsOn);
-    return (
+    return monthEventDisplay === 'dots' ? (
+      <MonthGridDots
+        weeks={weeks}
+        selected={selected}
+        today={today}
+        eventsByDay={eventsByDay}
+        colors={theme.colors}
+        onDayPress={handleDayPress}
+        onPressCell={onPressCell}
+      />
+    ) : (
       <MonthGrid
         weeks={weeks}
         selected={selected}
@@ -457,7 +543,10 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
         onPressCell={onPressCell}
       />
     );
-  }, [localAnchor, weekStartsOn, selected, today, eventsByDay, pagerHeight, theme.colors, handleDayPress, onPressCell]);
+  }, [
+    localAnchor, weekStartsOn, monthEventDisplay, selected, today, eventsByDay, pagerHeight,
+    theme.colors, handleDayPress, onPressCell,
+  ]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -532,6 +621,11 @@ const styles = StyleSheet.create({
   numberCell: { flex: 1, alignItems: 'center', paddingTop: 2 },
   dayCircle: { width: 32, height: 32, borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   dayNumber: { fontSize: 14, textAlign: 'center' },
+  // MonthGridDots only:
+  dotsWeekRow: { flex: 1, flexDirection: 'row' },
+  dayCell: { flex: 1, alignItems: 'center', paddingTop: 2 },
+  dotsRow: { flexDirection: 'row', gap: 2, marginTop: 2 },
+  dot: { width: 5, height: 5, borderRadius: 3 },
   lanesWrap: { flex: 1 },
   laneRow: { flexDirection: 'row', height: LANE_HEIGHT, marginTop: 1 },
   spacerCell: { flex: 1 },

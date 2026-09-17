@@ -190,6 +190,9 @@
     "weekStart": "La setmana comença lo",
     "sunday": "dimenge",
     "monday": "diluns",
+    "monthEventDisplay": "Eveniments dins la vista mesadièra",
+    "monthEventDisplayBars": "Títols",
+    "monthEventDisplayDots": "Punts",
     "calendarZoom": "Zoom del calendari",
     "reset": "Reïnicializar",
     "zoom": {

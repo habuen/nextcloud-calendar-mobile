@@ -195,6 +195,9 @@
     "weekStart": "A semana começa em",
     "sunday": "Domingo",
     "monday": "Segunda-feira",
+    "monthEventDisplay": "Eventos na vista mensal",
+    "monthEventDisplayBars": "Títulos",
+    "monthEventDisplayDots": "Pontos",
     "calendarZoom": "Zoom do calendário",
     "reset": "Repor",
     "zoom": {

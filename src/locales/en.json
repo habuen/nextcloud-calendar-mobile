@@ -195,6 +195,9 @@
     "weekStart": "Week Starts On",
     "sunday": "Sunday",
     "monday": "Monday",
+    "monthEventDisplay": "Month View Events",
+    "monthEventDisplayBars": "Titles",
+    "monthEventDisplayDots": "Dots",
     "calendarZoom": "Calendar Zoom",
     "reset": "Reset",
     "zoom": {
