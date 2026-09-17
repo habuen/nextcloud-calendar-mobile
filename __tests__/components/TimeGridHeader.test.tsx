@@ -2,6 +2,7 @@ import React from 'react';
 import { render as rtlRender, fireEvent } from '@testing-library/react-native';
 import { ThemeWrapper } from '../helpers/theme';
 import { TimeGridHeader } from '@/features/calendar/components/TimeGridHeader';
+import { dayKey } from '@/features/calendar/utils/grid';
 import type { CalendarEvent } from '@/types';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -22,7 +23,7 @@ const holiday: CalendarEvent = {
 describe('TimeGridHeader', () => {
   it('renders one day number per date', () => {
     const { getByText } = render(
-      <TimeGridHeader dates={dates} now={dates[0]} allDayEvents={[]} onPressEvent={jest.fn()} />
+      <TimeGridHeader dates={dates} todayKey={dayKey(dates[0])} allDayEvents={[]} onPressEvent={jest.fn()} />
     );
     expect(getByText('3')).toBeTruthy();
     expect(getByText('4')).toBeTruthy();
@@ -31,7 +32,7 @@ describe('TimeGridHeader', () => {
 
   it('renders an all-day event on the day it covers', () => {
     const { getByText } = render(
-      <TimeGridHeader dates={dates} now={dates[0]} allDayEvents={[holiday]} onPressEvent={jest.fn()} />
+      <TimeGridHeader dates={dates} todayKey={dayKey(dates[0])} allDayEvents={[holiday]} onPressEvent={jest.fn()} />
     );
     expect(getByText('Public holiday')).toBeTruthy();
   });
@@ -39,7 +40,7 @@ describe('TimeGridHeader', () => {
   it('reports the pressed all-day event', () => {
     const onPressEvent = jest.fn();
     const { getByText } = render(
-      <TimeGridHeader dates={dates} now={dates[0]} allDayEvents={[holiday]} onPressEvent={onPressEvent} />
+      <TimeGridHeader dates={dates} todayKey={dayKey(dates[0])} allDayEvents={[holiday]} onPressEvent={onPressEvent} />
     );
 
     fireEvent.press(getByText('Public holiday'));
@@ -49,7 +50,7 @@ describe('TimeGridHeader', () => {
 
   it('highlights today and nothing else', () => {
     const { getByTestId, queryByTestId } = render(
-      <TimeGridHeader dates={dates} now={dates[1]} allDayEvents={[]} onPressEvent={jest.fn()} />
+      <TimeGridHeader dates={dates} todayKey={dayKey(dates[1])} allDayEvents={[]} onPressEvent={jest.fn()} />
     );
     expect(getByTestId('day-highlight-2026-08-04')).toBeTruthy();
     expect(queryByTestId('day-highlight-2026-08-03')).toBeNull();
@@ -58,7 +59,7 @@ describe('TimeGridHeader', () => {
 
   it('highlights nothing on a page that does not contain today', () => {
     const { queryByTestId } = render(
-      <TimeGridHeader dates={dates} now={new Date(2026, 0, 15)} allDayEvents={[]} onPressEvent={jest.fn()} />
+      <TimeGridHeader dates={dates} todayKey={dayKey(new Date(2026, 0, 15))} allDayEvents={[]} onPressEvent={jest.fn()} />
     );
     expect(queryByTestId('day-highlight-2026-08-03')).toBeNull();
     expect(queryByTestId('day-highlight-2026-08-04')).toBeNull();

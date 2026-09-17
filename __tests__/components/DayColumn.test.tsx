@@ -100,14 +100,18 @@ describe('DayColumn', () => {
     jest.restoreAllMocks();
   });
 
-  it('shows the now indicator only on the day matching the now prop', () => {
+  it('shows the now indicator only when the caller passes a defined now (its own decision of which day is today)', () => {
+    // DayColumn no longer compares `date` to `now` itself — the caller
+    // (TimeGridPage) decides which column is today and only that one gets a
+    // defined `now`, so every other column's props stay stable across the
+    // once-a-minute ticker. See DayColumn's `now` prop doc comment.
     const today = render(
       <DayColumn date={date} positioned={[]} hourRowHeight={60} now={now} onPressSlot={jest.fn()} onPressEvent={jest.fn()} />
     );
     expect(today.queryByTestId('now-indicator')).toBeTruthy();
 
     const other = render(
-      <DayColumn date={new Date(2020, 0, 1)} positioned={[]} hourRowHeight={60} now={now} onPressSlot={jest.fn()} onPressEvent={jest.fn()} />
+      <DayColumn date={new Date(2020, 0, 1)} positioned={[]} hourRowHeight={60} now={undefined} onPressSlot={jest.fn()} onPressEvent={jest.fn()} />
     );
     expect(other.queryByTestId('now-indicator')).toBeNull();
   });

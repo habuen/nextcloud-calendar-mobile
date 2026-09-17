@@ -11,7 +11,11 @@ interface Props {
   date: Date;
   positioned: PositionedEvent[];
   hourRowHeight: number;
-  now: Date;
+  // Only set (by TimeGridPage) for whichever column is actually today; every
+  // other column gets `undefined`, which stays referentially stable across
+  // the current-time ticker so non-today columns don't re-render every
+  // minute just to rebuild the same event list.
+  now: Date | undefined;
   onPressSlot: (d: Date) => void;
   onPressEvent: (e: GridEvent) => void;
   dimmedUid?: string;
@@ -19,7 +23,6 @@ interface Props {
 
 function DayColumnImpl({ date, positioned, hourRowHeight, now, onPressSlot, onPressEvent, dimmedUid }: Props) {
   const { colors } = useTheme();
-  const isToday = dayjs(now).isSame(date, 'day');
 
   const columnStyle = useMemo(
     () => [styles.column, { borderLeftWidth: 1, borderLeftColor: colors.border }],
@@ -57,7 +60,7 @@ function DayColumnImpl({ date, positioned, hourRowHeight, now, onPressSlot, onPr
         );
       })}
 
-      {isToday && (
+      {now !== undefined && (
         <View
           testID="now-indicator"
           pointerEvents="none"

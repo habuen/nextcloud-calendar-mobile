@@ -47,4 +47,10 @@ describe('TimeGridPage', () => {
   it('mounts no drag ghost until a drag begins', () => {
     expect(render(page()).queryByTestId('drag-ghost')).toBeNull();
   });
+
+  it('shows the now indicator only on the column matching now, not on every date', () => {
+    // dates[0] is 2026-08-07, matching `now`; dates[1] is 2026-08-08.
+    const { queryAllByTestId } = render(page());
+    expect(queryAllByTestId('now-indicator')).toHaveLength(1);
+  });
 });

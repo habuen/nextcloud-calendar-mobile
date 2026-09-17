@@ -14,12 +14,15 @@ import {
 
 interface Props {
   dates: Date[];
-  now: Date;
+  // Which day is "today", as a dayKey string rather than the live clock — a
+  // string only changes once at midnight, so it doesn't force every header
+  // page to re-render on the current-time ticker (see TimeGridView's `now`).
+  todayKey: string;
   allDayEvents: CalendarEvent[];
   onPressEvent: (event: CalendarEvent) => void;
 }
 
-function TimeGridHeaderImpl({ dates, now, allDayEvents, onPressEvent }: Props) {
+function TimeGridHeaderImpl({ dates, todayKey, allDayEvents, onPressEvent }: Props) {
   const theme = useTheme();
   const language = useSettingsStore((s) => s.language);
 
@@ -34,7 +37,7 @@ function TimeGridHeaderImpl({ dates, now, allDayEvents, onPressEvent }: Props) {
   return (
     <View style={{ flexDirection: 'row', flex: 1 }}>
       {dates.map((date, i) => {
-        const isHighlight = dayjs(now).isSame(date, 'day');
+        const isHighlight = dayKey(date) === todayKey;
         return (
           <View key={dayKey(date)} style={{ flex: 1, paddingTop: 8 }}>
             <View style={{ height: 56, justifyContent: 'space-between' }}>
