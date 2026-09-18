@@ -5,7 +5,7 @@
     "remove": "Eliminar",
     "close": "Cerrar",
     "errorPermission": "Permiso denegado. Este calendario es de solo lectura o está compartido sin acceso de escritura.",
-    "errorNetwork": "Error de red. Comprueba tu conexión e inténtalo de nuevo.",
+    "errorNetwork": "No se pudo contactar con el servidor. No se guardó nada — inténtalo de nuevo cuando esté accesible.",
     "errorGeneric": "Algo salió mal. Inténtalo de nuevo.",
     "errorAuth": "Error de autenticación. Vuelve a iniciar sesión.",
     "errorNotFound": "Este elemento ya no existe en el servidor.",

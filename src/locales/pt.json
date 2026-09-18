@@ -5,7 +5,7 @@
     "remove": "Remover",
     "close": "Fechar",
     "errorPermission": "Permissão negada. Este calendário é só de leitura ou foi partilhado sem acesso de escrita.",
-    "errorNetwork": "Erro de rede. Verifique a sua ligação e tente novamente.",
+    "errorNetwork": "Não foi possível contactar o servidor. Nada foi guardado — tente novamente quando estiver acessível.",
     "errorGeneric": "Algo correu mal. Tente novamente.",
     "errorAuth": "Falha na autenticação. Inicie sessão novamente.",
     "errorNotFound": "Este item já não existe no servidor.",

@@ -5,7 +5,7 @@
     "remove": "Rimuovi",
     "close": "Chiudi",
     "errorPermission": "Autorizzazione negata. Questo calendario è di sola lettura o condiviso senza accesso in scrittura.",
-    "errorNetwork": "Errore di rete. Controlla la connessione e riprova.",
+    "errorNetwork": "Impossibile raggiungere il server. Non è stato salvato nulla — riprova quando sarà raggiungibile.",
     "errorGeneric": "Qualcosa è andato storto. Riprova.",
     "errorAuth": "Autenticazione non riuscita. Accedi di nuovo.",
     "errorNotFound": "Questo elemento non esiste più sul server.",

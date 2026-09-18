@@ -5,7 +5,7 @@
     "remove": "Suprimir",
     "close": "Tampar",
     "errorPermission": "Permission refusada. Aqueste calendari es en lectura sola o partejat sens drech d'escritura.",
-    "errorNetwork": "Error de ret. Verificatz la connexion e tornatz ensajar.",
+    "errorNetwork": "Impossible de jónher lo servidor. Res es estat enregistrat — tornatz ensajar un cop accessible.",
     "errorGeneric": "Quicòm s'es mal passat. Tornatz ensajar.",
     "errorAuth": "L'autentificacion a pas capitat. Tornatz-vos connectar.",
     "errorNotFound": "Aqueste element existís pas mai sul servidor.",
