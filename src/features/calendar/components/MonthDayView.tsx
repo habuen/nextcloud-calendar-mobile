@@ -144,7 +144,7 @@ function textColorFor(bgHex: string): string {
   return luminance > 0.6 ? '#1a1a1a' : '#fff';
 }
 
-// Must track the rendered size of dowRow/numberRow/laneRow below so the lane
+// Must track the rendered size of dowRow / the day number / laneRow below so the lane
 // count fits the cell instead of over- or under-filling it. Kept as constants
 // (not measured via onLayout) so the right lane count is known on a page's
 // very first render — an async measure-then-correct pass would otherwise pop
@@ -306,43 +306,37 @@ const MonthGrid = memo(function MonthGrid({
                 every touch lands on the Pressable and its locationX/Y are
                 relative to the week row rather than to whatever child was hit. */}
             <View pointerEvents="none" style={styles.weekContent}>
+              {/* One rounded tile per day that also holds the day number, so a day is
+                  two views (tile + number) instead of four (tile, number cell,
+                  circle, text). The number is the circle: fixed size, radius and
+                  background on the Text itself. */}
               <View style={styles.tileRow}>
-                {week.map((d, di) => (
-                  d === null
-                    ? <View key={di} style={styles.tileSlot} />
-                    : <View key={di} style={[styles.tileSlot, styles.tile, { backgroundColor: colors.surfaceRaised }]} />
-                ))}
-              </View>
-              <View style={styles.numberRow}>
                 {week.map((d, di) => {
-                  if (d === null) return <View key={di} style={styles.numberCell} />;
+                  if (d === null) return <View key={di} style={styles.tileSlot} />;
                   const isToday = d.isSame(today, 'day');
                   const isSelected = d.isSame(selected, 'day');
                   return (
                     <View
                       key={di}
                       testID={isSelected ? `day-selected-${d.format('YYYY-MM-DD')}` : undefined}
-                      style={styles.numberCell}
+                      style={[styles.tileSlot, styles.tile, { backgroundColor: colors.surfaceRaised }]}
                     >
-                      <View style={[
-                        styles.dayCircle,
-                        { backgroundColor: isSelected ? colors.primary : 'transparent' },
-                        { borderWidth: isToday && !isSelected ? 1.5 : 0, borderColor: colors.primary },
-                      ]}>
-                        <Text
-                          numberOfLines={1}
-                          allowFontScaling={false}
-                          style={[
-                            styles.dayNumber,
-                            { color: isSelected
-                              ? colors.primaryText
-                              : isToday
-                                ? colors.primary
-                                : colors.text, fontWeight: isSelected || isToday ? '700' : '400' },
-                          ]}>
-                          {d.date()}
-                        </Text>
-                      </View>
+                      <Text
+                        numberOfLines={1}
+                        allowFontScaling={false}
+                        style={[
+                          styles.dayNumber,
+                          {
+                            backgroundColor: isSelected ? colors.primary : 'transparent',
+                            borderWidth: isToday && !isSelected ? 1.5 : 0,
+                            borderColor: colors.primary,
+                            color: isSelected ? colors.primaryText : isToday ? colors.primary : colors.text,
+                            fontWeight: isSelected || isToday ? '700' : '400',
+                          },
+                        ]}
+                      >
+                        {d.date()}
+                      </Text>
                     </View>
                   );
                 })}
@@ -456,25 +450,22 @@ const MonthGridDots = memo(function MonthGridDots({
                   testID={isSelected ? `day-selected-${key}` : undefined}
                   style={[styles.dayCell, styles.tile, { backgroundColor: colors.surfaceRaised }]}
                 >
-                  <View style={[
-                    styles.dayCircle,
-                    { backgroundColor: isSelected ? colors.primary : 'transparent' },
-                    { borderWidth: isToday && !isSelected ? 1.5 : 0, borderColor: colors.primary },
-                  ]}>
-                    <Text
-                      numberOfLines={1}
-                      allowFontScaling={false}
-                      style={[
-                        styles.dayNumber,
-                        { color: isSelected
-                          ? colors.primaryText
-                          : isToday
-                            ? colors.primary
-                            : colors.text, fontWeight: isSelected || isToday ? '700' : '400' },
-                      ]}>
-                      {d.date()}
-                    </Text>
-                  </View>
+                  <Text
+                    numberOfLines={1}
+                    allowFontScaling={false}
+                    style={[
+                      styles.dayNumber,
+                      {
+                        backgroundColor: isSelected ? colors.primary : 'transparent',
+                        borderWidth: isToday && !isSelected ? 1.5 : 0,
+                        borderColor: colors.primary,
+                        color: isSelected ? colors.primaryText : isToday ? colors.primary : colors.text,
+                        fontWeight: isSelected || isToday ? '700' : '400',
+                      },
+                    ]}
+                  >
+                    {d.date()}
+                  </Text>
                   <View style={styles.dotsRow}>
                     {dots.map((color, ci) => (
                       <View key={ci} testID="month-event-dot" style={[styles.dot, { backgroundColor: color }]} />
@@ -677,16 +668,27 @@ const styles = StyleSheet.create({
   tileRow: { flexDirection: 'row', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   tileSlot: { flex: 1 },
   tile: { margin: TILE_MARGIN, borderRadius: 10 },
-  numberRow: { flexDirection: 'row' },
-  numberCell: { flex: 1, alignItems: 'center', paddingTop: 2 },
-  dayCircle: { width: 32, height: 32, borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  dayNumber: { fontSize: 14, textAlign: 'center' },
+  // The day number and its highlight circle are one Text: fixed 32px box,
+  // fully rounded, centred glyph.
+  dayNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    overflow: 'hidden',
+    fontSize: 14,
+    lineHeight: 32,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
   // MonthGridDots only:
   dotsWeekRow: { flex: 1, flexDirection: 'row' },
   dayCell: { flex: 1, alignItems: 'center', paddingTop: 2 },
   dotsRow: { flexDirection: 'row', gap: 2, marginTop: 2 },
   dot: { width: 5, height: 5, borderRadius: 3 },
-  lanesWrap: { flex: 1 },
+  // Sits under the day number (which now lives in the tile), so it can't be
+  // in normal flow after it.
+  lanesWrap: { position: 'absolute', top: DAY_NUMBER_ROW_HEIGHT, left: 0, right: 0 },
   laneRow: { height: LANE_HEIGHT, marginTop: LANE_GAP },
   barSlot: { position: 'absolute', top: 0, paddingHorizontal: BAR_INSET },
   eventBar: {
