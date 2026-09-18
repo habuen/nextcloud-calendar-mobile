@@ -1,4 +1,4 @@
-import { memo, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Platform, type ViewProps, type ViewStyle } from 'react-native';
 import { Freeze } from 'react-freeze';
 
@@ -21,9 +21,20 @@ function visibilityStyle(visible: boolean): ViewStyle {
 //    for views that may never be opened), and
 //  - once mounted, it's frozen while hidden: it keeps its state but React skips
 //    re-rendering it, then renders once with the latest props when shown again.
+//
+// The freeze is applied one render AFTER the view is hidden, from an effect,
+// not in the same render. The screen drives `visible` from a deferred copy of
+// the view mode (useDeferredValue), which is a low-priority update, and React
+// won't commit a low-priority update that re-hides Suspense content that is
+// already showing — which is what freezing is. Freezing inside that update left
+// the whole view switch stuck (the tap changed the date but never the view).
+// Unfreezing needs no such delay: showing a view never suspends.
 function ViewLayerImpl({ visible, style, children, ...rest }: Props) {
   const everShown = useRef(visible);
   if (visible) everShown.current = true;
+
+  const [frozen, setFrozen] = useState(false);
+  useEffect(() => { setFrozen(!visible); }, [visible]);
 
   return (
     <View
@@ -32,7 +43,7 @@ function ViewLayerImpl({ visible, style, children, ...rest }: Props) {
       style={[StyleSheet.absoluteFill, visibilityStyle(visible), style]}
       pointerEvents={visible ? 'auto' : 'none'}
     >
-      {everShown.current ? <Freeze freeze={!visible}>{children}</Freeze> : null}
+      {everShown.current ? <Freeze freeze={frozen && !visible}>{children}</Freeze> : null}
     </View>
   );
 }
