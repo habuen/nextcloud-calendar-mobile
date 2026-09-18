@@ -144,19 +144,26 @@ describe('eventDayKeys', () => {
 });
 
 describe('MonthDayView', () => {
-  it('highlights the day given by the date prop and follows prop changes', () => {
-    const { getByTestId, queryByTestId, rerender } = render(view(june10));
+  it('rings today, and nothing else, whichever date the view is showing', () => {
+    const now = new Date();
+    const key = dayjs(now).format('YYYY-MM-DD');
+    const { queryAllByTestId, rerender } = render(view(now));
+    expect(queryAllByTestId(/^day-today-/)).toHaveLength(1);
+    expect(queryAllByTestId(`day-today-${key}`)).toHaveLength(1);
 
-    expect(getByTestId('day-selected-2026-06-10')).toBeTruthy();
-    expect(queryByTestId('day-selected-2026-06-15')).toBeNull();
-
-    rerender(view(june15));
-
-    expect(queryByTestId('day-selected-2026-06-10')).toBeNull();
-    expect(getByTestId('day-selected-2026-06-15')).toBeTruthy();
+    // A swipe reports the 1st of the new month as the date; that must not
+    // light up as a highlighted day (it used to be a blue circle on every 1st).
+    rerender(view(new Date(2026, 6, 1)));
+    expect(queryAllByTestId(/^day-selected-/)).toHaveLength(0);
+    expect(queryAllByTestId('day-selected-2026-07-01')).toHaveLength(0);
   });
 
-  it('shows an event\'s title in the grid regardless of which day is selected', () => {
+  it('does not mark the date it was given as a selected day', () => {
+    const { queryAllByTestId } = render(view(june10));
+    expect(queryAllByTestId(/^day-selected-/)).toHaveLength(0);
+  });
+
+  it('shows an event\'s title in the grid whatever date the view is showing', () => {
     // The grid isn't scoped to the selected day — it always shows every
     // event on its own actual date(s) within the rendered month.
     expect(render(view(june10)).queryByText('Birthday Party')).toBeTruthy();

@@ -56,24 +56,13 @@ describe('month pages across a swipe', () => {
   const june10 = new Date(2026, 5, 10);
   const july1 = new Date(2026, 6, 1);
 
-  it('leaves the page that neither gains nor loses the highlighted day untouched', () => {
+  it('leaves every page untouched, since no page depends on the date being shown', () => {
     const { rerender } = rtlRender(view(june10), { wrapper: ThemeWrapper });
     const before = pages();
     rerender(view(july1));
     const after = pages();
 
-    // May: the highlight was never there and still isn't.
-    expect(wouldSkip(before[0], after[0])).toBe(true);
-  });
-
-  it('re-renders at most the two pages the highlight moves between', () => {
-    const { rerender } = rtlRender(view(june10), { wrapper: ThemeWrapper });
-    const before = pages();
-    rerender(view(july1));
-    const after = pages();
-
-    const rerendered = before.filter((b, i) => !wouldSkip(b, after[i])).length;
-    expect(rerendered).toBeLessThanOrEqual(2);
+    expect(before.map((b, i) => wouldSkip(b, after[i]))).toEqual([true, true, true]);
   });
 
   it('gives a page the same weeks array each time so its layout is not recomputed', () => {
