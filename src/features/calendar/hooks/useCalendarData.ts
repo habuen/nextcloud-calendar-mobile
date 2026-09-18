@@ -48,6 +48,7 @@ export function useCalendarData(date: Date) {
     // recently are fetched, so a swipe costs one month, not the whole window.
     const visible = monthsAround(date, -1, 1);
     const prefetch = [monthsAround(date, -2, -2), monthsAround(date, 2, 2)];
+    const isStale = () => !active;
     const runSync = (deleteMissing: boolean) => (from: Date, to: Date) =>
       syncEvents(activeAccount, calendars, from, to, deleteMissing);
 
@@ -56,7 +57,7 @@ export function useCalendarData(date: Date) {
         runningSyncs.current += 1;
         setSyncing(true);
         try {
-          await syncUncovered({ scope, months: visible, full: true, run: runSync(true) });
+          await syncUncovered({ scope, months: visible, full: true, run: runSync(true), isStale });
         } catch (error) {
           console.warn('[useCalendarData] syncEvents failed:', String(error));
         } finally {
@@ -69,7 +70,7 @@ export function useCalendarData(date: Date) {
         // handles its neighbours, so don't spend the network on stale ones.
         if (!active) return;
         try {
-          await syncUncovered({ scope, months, full: false, run: runSync(false) });
+          await syncUncovered({ scope, months, full: false, run: runSync(false), isStale });
         } catch (e) {
           console.warn('[useCalendarData] prefetch syncEvents failed:', String(e));
         }

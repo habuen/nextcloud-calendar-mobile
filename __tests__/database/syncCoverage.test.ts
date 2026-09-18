@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import {
   COVERAGE_TTL_MS,
+  MAX_CONCURRENT_SYNCS,
   coverageScope,
   hasUncovered,
   markCovered,
@@ -152,5 +153,117 @@ describe('syncUncovered', () => {
     await Promise.all([first, second]);
 
     expect(run).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('sync scheduling', () => {
+  // A run() the test settles by hand, recording the order calls start in.
+  function controlled() {
+    const started: string[] = [];
+    const finishers: Record<string, () => void> = {};
+    const runFor = (label: string) => () => new Promise<void>((res) => {
+      started.push(label);
+      finishers[label] = res;
+    });
+    return { started, finishers, runFor };
+  }
+  const month = (i: number) => new Date(2030, i, 1);
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  it('never runs more than the allowed number of syncs at once', async () => {
+    const { started, finishers, runFor } = controlled();
+    const jobs = [0, 1, 2, 3, 4].map((i) =>
+      syncUncovered({ scope, months: [month(i)], full: true, run: runFor(`m${i}`) }));
+    await flush();
+
+    expect(started).toHaveLength(MAX_CONCURRENT_SYNCS);
+
+    finishers[started[0]]();
+    await flush();
+    expect(started).toHaveLength(MAX_CONCURRENT_SYNCS + 1);
+
+    for (const f of Object.values(finishers)) f();
+    await flush();
+    Object.values(finishers).forEach((f) => f());
+    await flush();
+    Object.values(finishers).forEach((f) => f());
+    await Promise.all(jobs);
+  });
+
+  it('runs the newest visible month first once a slot frees up', async () => {
+    const { started, finishers, runFor } = controlled();
+    const jobs = [0, 1, 2, 3, 4].map((i) =>
+      syncUncovered({ scope, months: [month(i)], full: true, run: runFor(`m${i}`) }));
+    await flush();
+    expect(started).toEqual(['m0', 'm1']);
+
+    finishers.m0();
+    await flush();
+    expect(started[2]).toBe('m4');
+
+    finishers.m1(); await flush();
+    finishers.m4(); await flush();
+    finishers.m3(); await flush();
+    finishers.m2();
+    await Promise.all(jobs);
+  });
+
+  it('runs a visible month before a prefetch that was queued earlier', async () => {
+    const { started, finishers, runFor } = controlled();
+    const busy = [0, 1].map((i) =>
+      syncUncovered({ scope, months: [month(i)], full: true, run: runFor(`busy${i}`) }));
+    await flush();
+    const prefetch = syncUncovered({ scope, months: [month(5)], full: false, run: runFor('prefetch') });
+    const visible = syncUncovered({ scope, months: [month(6)], full: true, run: runFor('visible') });
+
+    finishers.busy0();
+    await flush();
+    expect(started[2]).toBe('visible');
+
+    finishers.busy1(); await flush();
+    finishers.visible(); await flush();
+    finishers.prefetch();
+    await Promise.all([...busy, prefetch, visible]);
+  });
+
+  it('drops a queued sync whose caller has moved on, without running or covering it', async () => {
+    const { started, finishers, runFor } = controlled();
+    const busy = [0, 1].map((i) =>
+      syncUncovered({ scope, months: [month(i)], full: true, run: runFor(`busy${i}`) }));
+    await flush();
+
+    let stale = false;
+    const dropped = syncUncovered({
+      scope, months: [month(9)], full: true, run: runFor('dropped'), isStale: () => stale,
+    });
+    stale = true;
+
+    finishers.busy0(); finishers.busy1();
+    await Promise.all([...busy, dropped]);
+
+    expect(started).not.toContain('dropped');
+    expect(hasUncovered(scope, [month(9)], true)).toBe(true);
+  });
+
+  it('still serves a second caller that shares a request the first caller dropped', async () => {
+    const { started, finishers, runFor } = controlled();
+    const busy = [0, 1].map((i) =>
+      syncUncovered({ scope, months: [month(i)], full: true, run: runFor(`busy${i}`) }));
+    await flush();
+
+    let firstStale = false;
+    const first = syncUncovered({
+      scope, months: [month(9)], full: true, run: runFor('shared'), isStale: () => firstStale,
+    });
+    const second = syncUncovered({ scope, months: [month(9)], full: true, run: runFor('shared') });
+    firstStale = true;
+
+    finishers.busy0(); finishers.busy1();
+    await flush(); await flush();
+    finishers.shared?.();
+    await Promise.all([...busy, first, second]);
+
+    expect(started.filter((l) => l === 'shared')).toHaveLength(1);
+    expect(hasUncovered(scope, [month(9)], true)).toBe(false);
   });
 });

@@ -14,7 +14,73 @@ interface Entry {
 }
 
 const covered = new Map<string, Entry>();
-const inFlight = new Map<string, Promise<void>>();
+const inFlight = new Map<string, Promise<boolean>>();
+
+// Swiping through several months used to start one sync per month at once,
+// each sending its own requests for every calendar, so the month you landed on
+// queued behind a pile of syncs for months you'd already passed. Syncs go
+// through this small scheduler instead: a couple at a time, newest visible
+// month first, and a sync for a month you've left is dropped if it hasn't
+// started yet.
+export const MAX_CONCURRENT_SYNCS = 2;
+const VISIBLE = 0;
+const PREFETCH = 1;
+
+interface Job {
+  run: () => Promise<void>;
+  priority: number;
+  isStale: () => boolean;
+  seq: number;
+  settle: (ran: boolean) => void;
+  fail: (e: unknown) => void;
+}
+
+const queue: Job[] = [];
+let running = 0;
+let epoch = 0;
+let nextSeq = 0;
+
+function pickNext(): Job | undefined {
+  let best = -1;
+  for (let i = 0; i < queue.length; i++) {
+    const j = queue[i];
+    if (best === -1) { best = i; continue; }
+    const b = queue[best];
+    if (j.priority !== b.priority) {
+      if (j.priority < b.priority) best = i;
+    } else if (j.priority === VISIBLE ? j.seq > b.seq : j.seq < b.seq) {
+      // Visible: newest first (it's the month on screen). Prefetch: oldest first.
+      best = i;
+    }
+  }
+  return best === -1 ? undefined : queue.splice(best, 1)[0];
+}
+
+function pump(): void {
+  while (running < MAX_CONCURRENT_SYNCS) {
+    const job = pickNext();
+    if (!job) return;
+    if (job.isStale()) { job.settle(false); continue; }
+    running += 1;
+    const myEpoch = epoch;
+    job.run().then(
+      () => job.settle(true),
+      (e) => job.fail(e),
+    ).finally(() => {
+      if (myEpoch === epoch) running -= 1;
+      pump();
+    });
+  }
+}
+
+// Resolves true if the job ran, false if it was dropped as stale before it
+// started.
+function schedule(run: () => Promise<void>, priority: number, isStale: () => boolean): Promise<boolean> {
+  return new Promise<boolean>((resolve, reject) => {
+    queue.push({ run, priority, isStale, seq: nextSeq++, settle: resolve, fail: reject });
+    pump();
+  });
+}
 
 export interface MonthRange {
   start: Date;
@@ -94,28 +160,41 @@ export function markCovered(scope: string, months: Date[], full: boolean, now: n
 export function resetCoverage(): void {
   covered.clear();
   inFlight.clear();
+  queue.length = 0;
+  running = 0;
+  epoch += 1;
 }
 
 // Syncs only the uncovered months of `months`, one range at a time, and marks
 // each range covered once it succeeds (a failed range stays uncovered, so the
 // next visit retries it). The same range requested twice at once shares one
-// request.
+// request. `isStale` reports that the caller has moved on: its queued ranges
+// are dropped rather than started.
 export async function syncUncovered(opts: {
   scope: string;
   months: Date[];
   full: boolean;
   run: (start: Date, end: Date) => Promise<void>;
+  isStale?: () => boolean;
 }): Promise<void> {
-  const { scope, months, full, run } = opts;
+  const { scope, months, full, run, isStale = () => false } = opts;
   for (const range of missingRanges(scope, months, full)) {
-    const key = `${scope}|${full}|${range.start.getTime()}|${range.end.getTime()}`;
-    let pending = inFlight.get(key);
-    if (!pending) {
-      pending = run(range.start, range.end)
-        .then(() => markCovered(scope, range.months, full))
-        .finally(() => { inFlight.delete(key); });
-      inFlight.set(key, pending);
+    // A shared request can be dropped as stale by whoever queued it first while
+    // this caller is still interested, so try again once before giving up.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (isStale()) return;
+      const key = `${scope}|${full}|${range.start.getTime()}|${range.end.getTime()}`;
+      let pending = inFlight.get(key);
+      if (!pending) {
+        pending = schedule(() => run(range.start, range.end), full ? VISIBLE : PREFETCH, isStale)
+          .then((ran) => {
+            if (ran) markCovered(scope, range.months, full);
+            return ran;
+          })
+          .finally(() => { inFlight.delete(key); });
+        inFlight.set(key, pending);
+      }
+      if (await pending) break;
     }
-    await pending;
   }
 }

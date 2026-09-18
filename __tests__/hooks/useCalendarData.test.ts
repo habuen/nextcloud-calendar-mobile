@@ -124,4 +124,33 @@ describe('useCalendarData sync', () => {
     expect(starts).not.toContain('2026-04-01');
     expect(starts).not.toContain('2026-08-01');
   });
+
+  it('keeps swiping through many months from flooding the server, and still syncs the one you land on', async () => {
+    const started: string[] = [];
+    const finishers: (() => void)[] = [];
+    mockedSync.mockImplementation((_a, _c, from: Date) => new Promise<void>((res) => {
+      started.push(ymd(from));
+      finishers.push(res);
+    }));
+
+    const { rerender } = renderHook(({ d }: { d: Date }) => useCalendarData(d), { initialProps: { d: june } });
+    for (let m = 1; m <= 8; m++) {
+      rerender({ d: new Date(2026, 5 + m * 2, 15) });
+    }
+    const landed = new Date(2026, 5 + 8 * 2, 15);
+    await act(async () => { await Promise.resolve(); });
+
+    // Only the limit's worth of syncs started while the rest waited.
+    expect(started.length).toBeLessThanOrEqual(2);
+
+    // Let everything finish; the month landed on must end up synced, and the
+    // months swiped past in between must not have been.
+    for (let i = 0; i < 40; i++) {
+      await act(async () => { finishers.splice(0).forEach((f) => f()); await Promise.resolve(); });
+    }
+    const landedStart = ymd(new Date(landed.getFullYear(), landed.getMonth() - 1, 1));
+    expect(started).toContain(landedStart);
+    const passedThrough = ymd(new Date(2026, 5 + 4 * 2 - 1, 1));
+    expect(started).not.toContain(passedThrough);
+  });
 });
