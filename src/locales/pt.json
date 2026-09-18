@@ -198,6 +198,8 @@
     "monthEventDisplay": "Eventos na vista mensal",
     "monthEventDisplayBars": "Títulos",
     "monthEventDisplayDots": "Pontos",
+    "showWeekNumbers": "Mostrar números da semana",
+    "showWeekNumbersHint": "Vista mensal: numera cada semana numa coluna à esquerda.",
     "calendarZoom": "Zoom do calendário",
     "reset": "Repor",
     "zoom": {

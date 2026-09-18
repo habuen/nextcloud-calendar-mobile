@@ -7,7 +7,7 @@ import dayjs from 'dayjs';
 const render = (ui: React.ReactElement, opts?: Parameters<typeof rtlRender>[1]) =>
   rtlRender(ui, { wrapper: ThemeWrapper, ...opts });
 import 'dayjs/locale/fr';
-import { MonthDayView, buildMonthGrid, eventDayKeys, buildWeekSegments, assignLanes, maxLanesFor, columnAt, laneAt, resolveWeekTouch } from '@/features/calendar/components/MonthDayView';
+import { MonthDayView, buildMonthGrid, eventDayKeys, buildWeekSegments, assignLanes, maxLanesFor, columnAt, laneAt, resolveWeekTouch, weekNumberFor, WEEK_NUMBER_GUTTER } from '@/features/calendar/components/MonthDayView';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { CalendarEvent } from '../../src/types';
 
@@ -532,5 +532,105 @@ describe('MonthDayView lane alignment', () => {
       expect(b.style.marginRight ?? 0).toBe(0);
       expect(b.style.paddingHorizontal).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('weekNumberFor', () => {
+  const numbers = (year: number, month: number, weekStartsOn: 0 | 1) =>
+    buildMonthGrid(year, month, weekStartsOn).map((w) => weekNumberFor(w, weekStartsOn));
+
+  it('numbers June 2026 by ISO week, the same for Sunday-first and Monday-first grids', () => {
+    expect(numbers(2026, 5, 0)).toEqual([23, 24, 25, 26, 27]);
+    expect(numbers(2026, 5, 1)).toEqual([23, 24, 25, 26, 27]);
+  });
+
+  it('uses the row\'s Thursday, so the row holding Jan 1 belongs to the year-end week it is mostly in', () => {
+    // Jan 1 2027 is a Friday. A Sunday-first row is Dec 27-Jan 2 (Thursday is Dec 31, 2026's week 53).
+    expect(numbers(2027, 0, 0)[0]).toBe(53);
+    expect(numbers(2027, 0, 0)[1]).toBe(1);
+    expect(numbers(2027, 0, 1)[0]).toBe(53);
+    expect(numbers(2027, 0, 1)[1]).toBe(1);
+  });
+
+  it('works out the number for the partial first row even though its leading days are blank', () => {
+    const first = buildMonthGrid(2026, 5, 0)[0];
+    expect(first[0]).toBeNull();
+    expect(weekNumberFor(first, 0)).toBe(23);
+  });
+
+  it('has no number for a row with no days in the month', () => {
+    expect(weekNumberFor([null, null, null, null, null, null, null], 0)).toBeNull();
+  });
+});
+
+describe('MonthDayView week numbers', () => {
+  afterEach(() => {
+    act(() => { useSettingsStore.getState().setShowWeekNumbers(false); });
+  });
+
+  function shown(over: Partial<React.ComponentProps<typeof MonthDayView>> = {}) {
+    return render(
+      <MonthDayView
+        date={june10}
+        events={[event]}
+        weekStartsOn={0}
+        jump={{ nonce: 0, target: june10 }}
+        onSelectDate={jest.fn()}
+        onMonthChange={jest.fn()}
+        onPressEvent={jest.fn()}
+        onPressCell={jest.fn()}
+        {...over}
+      />
+    );
+  }
+
+  it('shows no week numbers by default', () => {
+    expect(shown().queryAllByTestId('week-number')).toHaveLength(0);
+  });
+
+  it('shows one number per week row in a column beside the grid once turned on', () => {
+    act(() => { useSettingsStore.getState().setShowWeekNumbers(true); });
+    const { getAllByTestId } = shown();
+    expect(getAllByTestId('week-number').map((n) => n.props.children)).toEqual([23, 24, 25, 26, 27]);
+  });
+
+  it('labels the column in the weekday header', () => {
+    act(() => { useSettingsStore.getState().setShowWeekNumbers(true); });
+    expect(shown().getByText('W')).toBeTruthy();
+  });
+
+  it('still works out the tapped day from the week area, not the whole row, with the column showing', () => {
+    act(() => { useSettingsStore.getState().setShowWeekNumbers(true); });
+    const onSelectDate = jest.fn();
+    const { getAllByTestId } = shown({ onSelectDate });
+
+    // The week area is what's left after the number column.
+    const areaWidth = 700 - WEEK_NUMBER_GUTTER;
+    fireEvent(getAllByTestId('week-area')[0], 'layout', { nativeEvent: { layout: { width: areaWidth, height: 500 } } });
+    fireEvent.press(getAllByTestId('week-touch')[1], {
+      nativeEvent: { locationX: (3.5 * areaWidth) / 7, locationY: 10 }, // Wed, Jun 10
+    });
+
+    expect(dayjs(onSelectDate.mock.calls[0][0]).format('YYYY-MM-DD')).toBe('2026-06-10');
+  });
+
+  it('keeps bars on exact column boundaries with the column showing', () => {
+    act(() => { useSettingsStore.getState().setShowWeekNumbers(true); });
+    const COLUMN = 100 / 7;
+    for (const bar of shown().getAllByTestId('lane-bar')) {
+      const st = StyleSheet.flatten(bar.props.style);
+      expect(parseFloat(st.left as string) / COLUMN).toBeCloseTo(Math.round(parseFloat(st.left as string) / COLUMN), 5);
+      expect(parseFloat(st.width as string) / COLUMN).toBeCloseTo(Math.round(parseFloat(st.width as string) / COLUMN), 5);
+    }
+  });
+
+  it('numbers the dots view too', () => {
+    act(() => {
+      useSettingsStore.getState().setShowWeekNumbers(true);
+      useSettingsStore.getState().setMonthEventDisplay('dots');
+    });
+    const { getAllByTestId } = shown();
+    expect(getAllByTestId('week-number')).toHaveLength(5);
+    act(() => { useSettingsStore.getState().setMonthEventDisplay('bars'); });
   });
 });

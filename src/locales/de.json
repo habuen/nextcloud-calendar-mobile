@@ -198,6 +198,8 @@
     "monthEventDisplay": "Termine in der Monatsansicht",
     "monthEventDisplayBars": "Titel",
     "monthEventDisplayDots": "Punkte",
+    "showWeekNumbers": "Kalenderwochen anzeigen",
+    "showWeekNumbersHint": "Monatsansicht: Jede Woche in einer Spalte links nummerieren.",
     "calendarZoom": "Kalender-Zoom",
     "reset": "Zurücksetzen",
     "zoom": {

@@ -193,6 +193,8 @@
     "monthEventDisplay": "Eveniments dins la vista mesadièra",
     "monthEventDisplayBars": "Títols",
     "monthEventDisplayDots": "Punts",
+    "showWeekNumbers": "Afichar los numeròs de setmana",
+    "showWeekNumbersHint": "Vista mesadièra : numeròta cada setmana dins una colomna a esquèrra.",
     "calendarZoom": "Zoom del calendari",
     "reset": "Reïnicializar",
     "zoom": {

@@ -19,6 +19,7 @@ interface SettingsState {
   reduceMotion: boolean;
   talkOpenMode: TalkOpenMode;
   monthEventDisplay: MonthEventDisplay;
+  showWeekNumbers: boolean;
   setThemePreference: (pref: ThemePreference) => void;
   setLanguage: (lang: AppLanguage) => void;
   setWeekStartsOn: (v: 0 | 1) => void;
@@ -29,6 +30,7 @@ interface SettingsState {
   setReduceMotion: (v: boolean) => void;
   setTalkOpenMode: (v: TalkOpenMode) => void;
   setMonthEventDisplay: (v: MonthEventDisplay) => void;
+  setShowWeekNumbers: (v: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -44,6 +46,7 @@ export const useSettingsStore = create<SettingsState>()(
       reduceMotion: false,
       talkOpenMode: 'app',
       monthEventDisplay: 'bars',
+      showWeekNumbers: false,
       setTimedAlert: (v) => set({ timedAlert: v }),
       setAllDayAlert: (v) => set({ allDayAlert: v }),
       setThemePreference: (pref) => set({ themePreference: pref }),
@@ -54,6 +57,7 @@ export const useSettingsStore = create<SettingsState>()(
       setReduceMotion: (v) => set({ reduceMotion: v }),
       setTalkOpenMode: (v) => set({ talkOpenMode: v }),
       setMonthEventDisplay: (v) => set({ monthEventDisplay: v }),
+      setShowWeekNumbers: (v) => set({ showWeekNumbers: v }),
     }),
     {
       name: 'settings-store',
@@ -75,6 +79,7 @@ export const useSettingsStore = create<SettingsState>()(
         reduceMotion: state.reduceMotion,
         talkOpenMode: state.talkOpenMode,
         monthEventDisplay: state.monthEventDisplay,
+        showWeekNumbers: state.showWeekNumbers,
       }),
     }
   )

@@ -5,12 +5,15 @@ import {
 } from 'react-native';
 import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
+import isoWeek from 'dayjs/plugin/isoWeek';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from 'expo-router';
 import InfinitePager, { type InfinitePagerImperativeApi } from 'react-native-infinite-pager';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { CalendarEvent } from '@/types';
 
 dayjs.extend(localizedFormat);
+dayjs.extend(isoWeek);
 
 // Jumps within this many months slide (animated); farther ones re-anchor
 // instantly rather than spring across a long stretch of empty months.
@@ -168,6 +171,25 @@ const BAR_INSET = TILE_MARGIN + 1;
 // banner) for a synchronous first-frame estimate — see its one use below.
 const ESTIMATED_CHROME_HEIGHT = 130;
 
+// Width of the optional week-number column to the left of the seven day
+// columns. It sits OUTSIDE them: the day columns, bar placement and touch
+// hit-testing all work on the week area beside it, so showing it narrows that
+// area but can't shift a bar off its day (which is how the earlier margin bug
+// happened — anything that shares the columns' width has to be inside them).
+export const WEEK_NUMBER_GUTTER = 26;
+
+// ISO week number for a week row, taken from the row's Thursday (the ISO rule
+// for which week a row belongs to), so a row spanning two ISO weeks — every
+// Sunday-first row does — shows the one most of it is in. Columns outside the
+// month are null in the grid, so the Thursday is derived from any real day in
+// the row rather than read directly.
+export function weekNumberFor(week: (dayjs.Dayjs | null)[], weekStartsOn: 0 | 1): number | null {
+  const col = week.findIndex((d) => d !== null);
+  if (col === -1) return null;
+  const thursdayCol = (4 - weekStartsOn + 7) % 7;
+  return week[col]!.add(thursdayCol - col, 'day').isoWeek();
+}
+
 // How many lane rows (event bars, or the "+N" row) fit under the day number
 // inside a week row of `rowHeight`, without running past the day tile's bottom.
 export function maxLanesFor(rowHeight: number): number {
@@ -180,6 +202,8 @@ interface MonthGridProps {
   today: dayjs.Dayjs;
   eventsByDay: Map<string, CalendarEvent[]>;
   pagerHeight: number;
+  // One entry per week row, or null when week numbers are off.
+  weekNumbers: (number | null)[] | null;
   colors: ReturnType<typeof useTheme>['colors'];
   onDayPress: (d: dayjs.Dayjs) => void;
   onPressCell: (d: Date) => void;
@@ -236,10 +260,26 @@ export function resolveWeekTouch(
   return segment ? { kind: 'event', segment } : { kind: 'day', col };
 }
 
+const WeekNumberGutter = memo(function WeekNumberGutter({
+  numbers, color,
+}: { numbers: (number | null)[]; color: string }) {
+  return (
+    <View style={styles.weekNumberGutter}>
+      {numbers.map((n, i) => (
+        <View key={i} style={styles.weekNumberCell}>
+          {n !== null && (
+            <Text testID="week-number" allowFontScaling={false} style={[styles.weekNumber, { color }]}>{n}</Text>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+});
+
 // One month's 6-week grid. Rendered per pager page so a horizontal swipe slides a
 // full month in and out under the finger instead of the old swipe-then-jump.
 const MonthGrid = memo(function MonthGrid({
-  weeks, selected, today, eventsByDay, pagerHeight, colors, onDayPress, onPressCell, onPressEvent,
+  weeks, selected, today, eventsByDay, pagerHeight, weekNumbers, colors, onDayPress, onPressCell, onPressEvent,
 }: MonthGridProps) {
   // pagerHeight is a synchronous estimate on this page's very first render,
   // corrected in place once MonthDayViewImpl's own container is measured —
@@ -249,7 +289,7 @@ const MonthGrid = memo(function MonthGrid({
   const rawMaxLanes = maxLanesFor(pagerHeight / weeks.length);
 
   // Only read when a touch lands, so a ref: measuring it must not re-render.
-  const widthRef = useRef(Dimensions.get('window').width);
+  const widthRef = useRef(Dimensions.get('window').width - (weekNumbers ? WEEK_NUMBER_GUTTER : 0));
 
   const weekLanes = useMemo(
     () => weeks.map((week) => assignLanes(buildWeekSegments(week, weekCandidates(week, eventsByDay)))),
@@ -257,10 +297,13 @@ const MonthGrid = memo(function MonthGrid({
   );
 
   return (
-    <View
-      style={styles.monthPage}
-      onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
-    >
+    <View style={styles.monthPage}>
+      {weekNumbers && <WeekNumberGutter numbers={weekNumbers} color={colors.textTertiary} />}
+      <View
+        testID="week-area"
+        style={styles.weekArea}
+        onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
+      >
       {weeks.map((week, wi) => {
         const laned = weekLanes[wi];
         const laneCount = laned.reduce((max, s) => Math.max(max, s.lane + 1), 0);
@@ -392,6 +435,7 @@ const MonthGrid = memo(function MonthGrid({
           </View>
         );
       })}
+      </View>
     </View>
   );
 });
@@ -401,6 +445,7 @@ interface MonthGridDotsProps {
   selected: dayjs.Dayjs;
   today: dayjs.Dayjs;
   eventsByDay: Map<string, CalendarEvent[]>;
+  weekNumbers: (number | null)[] | null;
   colors: ReturnType<typeof useTheme>['colors'];
   onDayPress: (d: dayjs.Dayjs) => void;
   onPressCell: (d: Date) => void;
@@ -413,15 +458,18 @@ interface MonthGridDotsProps {
 // every cell is the same fixed size regardless of how many events land on it.
 // Same one-touch-surface-per-week approach as MonthGrid.
 const MonthGridDots = memo(function MonthGridDots({
-  weeks, selected, today, eventsByDay, colors, onDayPress, onPressCell,
+  weeks, selected, today, eventsByDay, weekNumbers, colors, onDayPress, onPressCell,
 }: MonthGridDotsProps) {
-  const widthRef = useRef(Dimensions.get('window').width);
+  const widthRef = useRef(Dimensions.get('window').width - (weekNumbers ? WEEK_NUMBER_GUTTER : 0));
 
   return (
-    <View
-      style={styles.monthPage}
-      onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
-    >
+    <View style={styles.monthPage}>
+      {weekNumbers && <WeekNumberGutter numbers={weekNumbers} color={colors.textTertiary} />}
+      <View
+        testID="week-area"
+        style={styles.weekArea}
+        onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
+      >
       {weeks.map((week, wi) => (
         <View key={wi} style={styles.weekRow}>
           <Pressable
@@ -477,6 +525,7 @@ const MonthGridDots = memo(function MonthGridDots({
           </View>
         </View>
       ))}
+      </View>
     </View>
   );
 });
@@ -485,6 +534,8 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
   const theme = useTheme();
   const language = useSettingsStore((s) => s.language);
   const monthEventDisplay = useSettingsStore((s) => s.monthEventDisplay);
+  const showWeekNumbers = useSettingsStore((s) => s.showWeekNumbers);
+  const { t } = useTranslation();
 
   const selected = useMemo(() => dayjs(date), [date]);
 
@@ -600,12 +651,14 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
   const renderPage = useCallback(({ index }: { index: number }) => {
     const m = dayjs(localAnchor).add(index, 'month');
     const weeks = buildMonthGrid(m.year(), m.month(), weekStartsOn);
+    const weekNumbers = showWeekNumbers ? weeks.map((w) => weekNumberFor(w, weekStartsOn)) : null;
     return monthEventDisplay === 'dots' ? (
       <MonthGridDots
         weeks={weeks}
         selected={selected}
         today={today}
         eventsByDay={eventsByDay}
+        weekNumbers={weekNumbers}
         colors={theme.colors}
         onDayPress={handleDayPress}
         onPressCell={onPressCell}
@@ -617,6 +670,7 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
         today={today}
         eventsByDay={eventsByDay}
         pagerHeight={pagerHeight}
+        weekNumbers={weekNumbers}
         colors={theme.colors}
         onDayPress={handleDayPress}
         onPressCell={onPressCell}
@@ -624,7 +678,7 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
       />
     );
   }, [
-    localAnchor, weekStartsOn, monthEventDisplay, selected, today, eventsByDay, pagerHeight,
+    localAnchor, weekStartsOn, monthEventDisplay, showWeekNumbers, selected, today, eventsByDay, pagerHeight,
     theme.colors, handleDayPress, onPressCell, onPressEvent,
   ]);
 
@@ -632,6 +686,11 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
     <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
       <View style={styles.grid} onLayout={handleGridLayout}>
         <View style={styles.dowRow}>
+          {showWeekNumbers && (
+            <Text style={[styles.dowLabel, styles.weekNumberHeader, { color: theme.colors.textTertiary }]}>
+              {t('calendar.weekAbbr')}
+            </Text>
+          )}
           {dayHeaders.map((d, i) => (
             <Text key={i} style={[styles.dowLabel, { color: theme.colors.textTertiary }]}>{d}</Text>
           ))}
@@ -662,7 +721,13 @@ const styles = StyleSheet.create({
   dowRow: { flexDirection: 'row', paddingVertical: 6 },
   dowLabel: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
   pagerWrap: { flex: 1 },
-  monthPage: { flex: 1 },
+  monthPage: { flex: 1, flexDirection: 'row' },
+  weekArea: { flex: 1 },
+  weekNumberGutter: { width: WEEK_NUMBER_GUTTER },
+  weekNumberCell: { flex: 1, alignItems: 'center' },
+  // Same box as the day number beside it so the two centre on one line.
+  weekNumber: { marginTop: TILE_MARGIN, height: 32, lineHeight: 32, fontSize: 10, fontWeight: '600', textAlign: 'center', includeFontPadding: false },
+  weekNumberHeader: { flex: 0, width: WEEK_NUMBER_GUTTER },
   weekRow: { flex: 1 },
   weekContent: { flex: 1 },
   tileRow: { flexDirection: 'row', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },

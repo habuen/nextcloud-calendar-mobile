@@ -198,6 +198,8 @@
     "monthEventDisplay": "Month View Events",
     "monthEventDisplayBars": "Titles",
     "monthEventDisplayDots": "Dots",
+    "showWeekNumbers": "Show Week Numbers",
+    "showWeekNumbersHint": "Month view: number each week in a column on the left.",
     "calendarZoom": "Calendar Zoom",
     "reset": "Reset",
     "zoom": {

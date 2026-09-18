@@ -48,4 +48,12 @@ describe('settingsStore', () => {
     useSettingsStore.getState().setMonthEventDisplay('bars');
     expect(useSettingsStore.getState().monthEventDisplay).toBe('bars');
   });
+
+  it('hides week numbers by default and can turn them on and off', () => {
+    expect(useSettingsStore.getState().showWeekNumbers).toBe(false);
+    useSettingsStore.getState().setShowWeekNumbers(true);
+    expect(useSettingsStore.getState().showWeekNumbers).toBe(true);
+    useSettingsStore.getState().setShowWeekNumbers(false);
+    expect(useSettingsStore.getState().showWeekNumbers).toBe(false);
+  });
 });

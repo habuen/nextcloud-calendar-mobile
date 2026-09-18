@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useCalendarStore } from '@/stores/calendarStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { SettingsPage } from '@/features/settings/components/SettingsPage';
-import { Button, Chip, IconButton, Stack, Typography } from '@/ui/components';
+import { Button, Chip, IconButton, Stack, Toggle, Typography } from '@/ui/components';
 
 const cardOuter = { marginHorizontal: 16, marginBottom: 12 };
 
@@ -31,6 +31,8 @@ export default function CalendarSettingsScreen() {
   const setWeekStartsOn = useSettingsStore((s) => s.setWeekStartsOn);
   const monthEventDisplay = useSettingsStore((s) => s.monthEventDisplay);
   const setMonthEventDisplay = useSettingsStore((s) => s.setMonthEventDisplay);
+  const showWeekNumbers = useSettingsStore((s) => s.showWeekNumbers);
+  const setShowWeekNumbers = useSettingsStore((s) => s.setShowWeekNumbers);
 
   const [pendingWeek, setPendingWeek] = useState(weekStartsOn);
   useEffect(() => { setPendingWeek(weekStartsOn); }, [weekStartsOn]);
@@ -72,6 +74,16 @@ export default function CalendarSettingsScreen() {
               {t(opt.labelKey)}
             </Chip>
           ))}
+        </Stack>
+      </Stack>
+
+      <Stack card gap={12} padding={16} hAlign="stretch" style={cardOuter}>
+        <Stack direction="horizontal" vAlign="center" gap={12}>
+          <Stack gap={2} style={{ flex: 1 }}>
+            <Typography variant="body1">{t('settings.showWeekNumbers')}</Typography>
+            <Typography variant="caption" color="secondary">{t('settings.showWeekNumbersHint')}</Typography>
+          </Stack>
+          <Toggle value={showWeekNumbers} onValueChange={setShowWeekNumbers} />
         </Stack>
       </Stack>
 

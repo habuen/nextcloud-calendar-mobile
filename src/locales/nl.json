@@ -198,6 +198,8 @@
     "monthEventDisplay": "Afspraken in maandweergave",
     "monthEventDisplayBars": "Titels",
     "monthEventDisplayDots": "Stippen",
+    "showWeekNumbers": "Weeknummers tonen",
+    "showWeekNumbersHint": "Maandweergave: nummert elke week in een kolom links.",
     "calendarZoom": "Agendazoom",
     "reset": "Resetten",
     "zoom": {

@@ -198,6 +198,8 @@
     "monthEventDisplay": "События в виде месяца",
     "monthEventDisplayBars": "Заголовки",
     "monthEventDisplayDots": "Точки",
+    "showWeekNumbers": "Показывать номера недель",
+    "showWeekNumbersHint": "Вид месяца: нумерует каждую неделю в столбце слева.",
     "calendarZoom": "Масштаб календаря",
     "reset": "Сбросить",
     "zoom": {
