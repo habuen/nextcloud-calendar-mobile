@@ -5,7 +5,7 @@
     "remove": "Entfernen",
     "close": "Schließen",
     "errorPermission": "Zugriff verweigert. Dieser Kalender ist schreibgeschützt oder ohne Schreibzugriff freigegeben.",
-    "errorNetwork": "Netzwerkfehler. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    "errorNetwork": "Der Server war nicht erreichbar. Nichts wurde gespeichert — versuchen Sie es erneut, sobald er erreichbar ist.",
     "errorGeneric": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     "errorAuth": "Authentifizierung fehlgeschlagen. Bitte melden Sie sich erneut an.",
     "errorNotFound": "Dieses Element existiert nicht mehr auf dem Server.",

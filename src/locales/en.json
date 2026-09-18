@@ -5,7 +5,7 @@
     "remove": "Remove",
     "close": "Close",
     "errorPermission": "Permission denied. This calendar is read-only or shared without write access.",
-    "errorNetwork": "Network error. Check your connection and try again.",
+    "errorNetwork": "Couldn't reach the server. Nothing was saved — try again once it's reachable.",
     "errorGeneric": "Something went wrong. Please try again.",
     "errorAuth": "Authentication failed. Please sign in again.",
     "errorNotFound": "This item no longer exists on the server.",

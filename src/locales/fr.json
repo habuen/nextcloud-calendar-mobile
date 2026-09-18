@@ -5,7 +5,7 @@
     "remove": "Supprimer",
     "close": "Fermer",
     "errorPermission": "Autorisation refusée. Cet agenda est en lecture seule ou partagé sans accès en écriture.",
-    "errorNetwork": "Erreur réseau. Vérifiez votre connexion et réessayez.",
+    "errorNetwork": "Impossible de joindre le serveur. Rien n'a été enregistré — réessayez une fois qu'il sera accessible.",
     "errorGeneric": "Une erreur s'est produite. Veuillez réessayer.",
     "errorAuth": "Échec de l'authentification. Veuillez vous reconnecter.",
     "errorNotFound": "Cet élément n'existe plus sur le serveur.",

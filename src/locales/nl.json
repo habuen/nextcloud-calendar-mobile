@@ -5,7 +5,7 @@
     "remove": "Verwijderen",
     "close": "Sluiten",
     "errorPermission": "Toegang geweigerd. Deze agenda is alleen-lezen of gedeeld zonder schrijfrechten.",
-    "errorNetwork": "Netwerkfout. Controleer je verbinding en probeer het opnieuw.",
+    "errorNetwork": "Kon de server niet bereiken. Er is niets opgeslagen — probeer het opnieuw zodra deze bereikbaar is.",
     "errorGeneric": "Er is iets misgegaan. Probeer het opnieuw.",
     "errorAuth": "Verificatie mislukt. Meld je opnieuw aan.",
     "errorNotFound": "Dit item bestaat niet meer op de server.",
