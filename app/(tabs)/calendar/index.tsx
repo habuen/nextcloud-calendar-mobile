@@ -201,7 +201,15 @@ export default function CalendarScreen() {
       {showFullOverlay && <CalendarLoadingOverlay label={t('calendar.loadingCalendar')} />}
       {showSmallLoader && <Spinner size="small" color="secondary" style={styles.smallLoader} />}
 
-      <CalendarFab onPress={() => navGuard(() => router.push('/event/new'))} />
+      <CalendarFab
+        onPress={() => navGuard(() => {
+          // Prefill the new-event form with whatever date is actually being
+          // looked at, not always "today" — agenda/schedule mode tracks its
+          // own scrolled-to date separately from the other views' `date`.
+          const newEventDate = viewMode === 'schedule' ? agendaVisibleDate : date;
+          router.push({ pathname: '/event/new', params: { date: newEventDate.toISOString() } });
+        })}
+      />
 
       <CalendarDrawer
         open={drawer.drawerOpen}
