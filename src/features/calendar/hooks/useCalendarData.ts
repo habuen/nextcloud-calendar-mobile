@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 
 import { syncEvents } from '@/database/sync';
+import { coverageScope, hasUncovered, monthsAround, syncUncovered } from '@/database/syncCoverage';
 import { useEventsForRange } from '@/database/useEvents';
 import { useAccountStore } from '@/stores/accountStore';
 import { useCalendarStore } from '@/stores/calendarStore';
 import { useActiveAccount } from '@/hooks/useAccounts';
 import { useCalendars } from '@/hooks/useCalendars';
 import { normalizeEvents } from '@/utils/normalizeEvent';
-import { monthRange, monthRangeAt } from '../utils/range';
+import { monthRange } from '../utils/range';
 
 export function useCalendarData(date: Date) {
   const activeAccountId = useAccountStore((s) => s.activeAccountId);
@@ -24,6 +25,11 @@ export function useCalendarData(date: Date) {
   const dbEvents = useEventsForRange(activeAccountId ?? '', start, end);
 
   const [syncing, setSyncing] = useState(false);
+  // Visible-month syncs currently running. A counter rather than a flag: a
+  // sync can outlive its effect (you swipe on mid-sync), and the spinner must
+  // still clear when the last one ends, even if the effect that replaced it
+  // found its months already synced and never started one of its own.
+  const runningSyncs = useRef(0);
 
 
   useEffect(() => {
@@ -35,23 +41,39 @@ export function useCalendarData(date: Date) {
       return;
     }
     let active = true;
-    setSyncing(true);
+    const scope = coverageScope(activeAccount.id, calendars.map((c) => c.id));
+    // The three months the query above reads are what must be fresh; the
+    // months just outside them are fetched quietly afterwards so the next
+    // swipe already finds them in the database. Only months not synced
+    // recently are fetched, so a swipe costs one month, not the whole window.
+    const visible = monthsAround(date, -1, 1);
+    const prefetch = [monthsAround(date, -2, -2), monthsAround(date, 2, 2)];
+    const runSync = (deleteMissing: boolean) => (from: Date, to: Date) =>
+      syncEvents(activeAccount, calendars, from, to, deleteMissing);
+
     (async () => {
-      try {
-        await syncEvents(activeAccount, calendars, start, end);
-      } catch (error) {
-        console.warn('[useCalendarData] syncEvents failed:', String(error));
-      } finally {
-        if (active) setSyncing(false);
+      if (hasUncovered(scope, visible, true)) {
+        runningSyncs.current += 1;
+        setSyncing(true);
+        try {
+          await syncUncovered({ scope, months: visible, full: true, run: runSync(true) });
+        } catch (error) {
+          console.warn('[useCalendarData] syncEvents failed:', String(error));
+        } finally {
+          runningSyncs.current -= 1;
+          setSyncing(runningSyncs.current > 0);
+        }
       }
-      const prev = monthRangeAt(date, -1);
-      const next = monthRangeAt(date, 1);
-      void syncEvents(activeAccount, calendars, prev.start, prev.end, false).catch((e) => {
-        console.warn('[useCalendarData] prev syncEvents failed:', String(e));
-      });
-      void syncEvents(activeAccount, calendars, next.start, next.end, false).catch((e) => {
-        console.warn('[useCalendarData] next syncEvents failed:', String(e));
-      });
+      for (const months of prefetch) {
+        // Moved on to another month while syncing: that month's own effect
+        // handles its neighbours, so don't spend the network on stale ones.
+        if (!active) return;
+        try {
+          await syncUncovered({ scope, months, full: false, run: runSync(false) });
+        } catch (e) {
+          console.warn('[useCalendarData] prefetch syncEvents failed:', String(e));
+        }
+      }
     })();
     return () => {
       active = false;

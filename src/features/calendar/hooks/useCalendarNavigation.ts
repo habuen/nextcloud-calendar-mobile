@@ -5,7 +5,7 @@ import type { AgendaViewHandle } from '@/features/calendar/components/AgendaView
 import type { ViewMode } from '@/types';
 import { isCalMode } from '../constants';
 
-const FETCH_DATE_DEBOUNCE_MS = 300;
+const FETCH_DATE_DEBOUNCE_MS = 150;
 
 export function useCalendarNavigation() {
   const viewMode = useCalendarStore((s) => s.viewMode);
