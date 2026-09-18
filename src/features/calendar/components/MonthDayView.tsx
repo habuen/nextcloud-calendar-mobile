@@ -198,7 +198,10 @@ export function maxLanesFor(rowHeight: number): number {
 
 interface MonthGridProps {
   weeks: (dayjs.Dayjs | null)[][];
-  selected: dayjs.Dayjs;
+  // YYYY-MM-DD of the highlighted day, or null on every page but the month it
+  // is in — a page whose highlight didn't change then keeps identical props, so
+  // React skips re-rendering it when a swipe moves the highlight elsewhere.
+  selectedKey: string | null;
   today: dayjs.Dayjs;
   eventsByDay: Map<string, CalendarEvent[]>;
   pagerHeight: number;
@@ -279,7 +282,7 @@ const WeekNumberGutter = memo(function WeekNumberGutter({
 // One month's 6-week grid. Rendered per pager page so a horizontal swipe slides a
 // full month in and out under the finger instead of the old swipe-then-jump.
 const MonthGrid = memo(function MonthGrid({
-  weeks, selected, today, eventsByDay, pagerHeight, weekNumbers, colors, onDayPress, onPressCell, onPressEvent,
+  weeks, selectedKey, today, eventsByDay, pagerHeight, weekNumbers, colors, onDayPress, onPressCell, onPressEvent,
 }: MonthGridProps) {
   // pagerHeight is a synchronous estimate on this page's very first render,
   // corrected in place once MonthDayViewImpl's own container is measured —
@@ -357,11 +360,12 @@ const MonthGrid = memo(function MonthGrid({
                 {week.map((d, di) => {
                   if (d === null) return <View key={di} style={styles.tileSlot} />;
                   const isToday = d.isSame(today, 'day');
-                  const isSelected = d.isSame(selected, 'day');
+                  const dayKey = d.format('YYYY-MM-DD');
+                  const isSelected = dayKey === selectedKey;
                   return (
                     <View
                       key={di}
-                      testID={isSelected ? `day-selected-${d.format('YYYY-MM-DD')}` : undefined}
+                      testID={isSelected ? `day-selected-${dayKey}` : undefined}
                       style={[styles.tileSlot, styles.tile, { backgroundColor: colors.surfaceRaised }]}
                     >
                       <Text
@@ -442,7 +446,7 @@ const MonthGrid = memo(function MonthGrid({
 
 interface MonthGridDotsProps {
   weeks: (dayjs.Dayjs | null)[][];
-  selected: dayjs.Dayjs;
+  selectedKey: string | null;
   today: dayjs.Dayjs;
   eventsByDay: Map<string, CalendarEvent[]>;
   weekNumbers: (number | null)[] | null;
@@ -458,7 +462,7 @@ interface MonthGridDotsProps {
 // every cell is the same fixed size regardless of how many events land on it.
 // Same one-touch-surface-per-week approach as MonthGrid.
 const MonthGridDots = memo(function MonthGridDots({
-  weeks, selected, today, eventsByDay, weekNumbers, colors, onDayPress, onPressCell,
+  weeks, selectedKey, today, eventsByDay, weekNumbers, colors, onDayPress, onPressCell,
 }: MonthGridDotsProps) {
   const widthRef = useRef(Dimensions.get('window').width - (weekNumbers ? WEEK_NUMBER_GUTTER : 0));
 
@@ -489,7 +493,7 @@ const MonthGridDots = memo(function MonthGridDots({
               if (d === null) return <View key={di} style={styles.dayCell} />;
               const key = d.format('YYYY-MM-DD');
               const isToday = d.isSame(today, 'day');
-              const isSelected = d.isSame(selected, 'day');
+              const isSelected = key === selectedKey;
               const dots = Array.from(new Set((eventsByDay.get(key) ?? []).map((e) => e.color))).slice(0, 3);
 
               return (
@@ -648,14 +652,34 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
     onMonthChange(dayjs(localAnchorRef.current).add(index, 'month').startOf('month').toDate());
   }, [onMonthChange]);
 
+  // A month's grid (and its week numbers) is built once and reused. renderPage
+  // runs again on every swipe, and a fresh weeks array each time made every
+  // page's props differ, so React re-rendered all three mounted months and
+  // rebuilt their lane layout right as the next swipe was starting.
+  const gridCache = useRef(new Map<string, { weeks: (dayjs.Dayjs | null)[][]; weekNumbers: (number | null)[] | null }>());
+  const gridFor = useCallback((m: dayjs.Dayjs) => {
+    const key = `${m.year()}-${m.month()}-${weekStartsOn}-${showWeekNumbers}`;
+    let hit = gridCache.current.get(key);
+    if (!hit) {
+      if (gridCache.current.size >= 24) gridCache.current.clear();
+      const weeks = buildMonthGrid(m.year(), m.month(), weekStartsOn);
+      hit = {
+        weeks,
+        weekNumbers: showWeekNumbers ? weeks.map((w) => weekNumberFor(w, weekStartsOn)) : null,
+      };
+      gridCache.current.set(key, hit);
+    }
+    return hit;
+  }, [weekStartsOn, showWeekNumbers]);
+
   const renderPage = useCallback(({ index }: { index: number }) => {
     const m = dayjs(localAnchor).add(index, 'month');
-    const weeks = buildMonthGrid(m.year(), m.month(), weekStartsOn);
-    const weekNumbers = showWeekNumbers ? weeks.map((w) => weekNumberFor(w, weekStartsOn)) : null;
+    const { weeks, weekNumbers } = gridFor(m);
+    const selectedKey = selected.isSame(m, 'month') ? selected.format('YYYY-MM-DD') : null;
     return monthEventDisplay === 'dots' ? (
       <MonthGridDots
         weeks={weeks}
-        selected={selected}
+        selectedKey={selectedKey}
         today={today}
         eventsByDay={eventsByDay}
         weekNumbers={weekNumbers}
@@ -666,7 +690,7 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
     ) : (
       <MonthGrid
         weeks={weeks}
-        selected={selected}
+        selectedKey={selectedKey}
         today={today}
         eventsByDay={eventsByDay}
         pagerHeight={pagerHeight}
@@ -678,7 +702,7 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
       />
     );
   }, [
-    localAnchor, weekStartsOn, monthEventDisplay, showWeekNumbers, selected, today, eventsByDay, pagerHeight,
+    localAnchor, gridFor, monthEventDisplay, selected, today, eventsByDay, pagerHeight,
     theme.colors, handleDayPress, onPressCell, onPressEvent,
   ]);
 
