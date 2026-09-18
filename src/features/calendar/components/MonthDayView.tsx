@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Dimensions, type LayoutChangeEvent,
+  View, Text, Pressable, StyleSheet, Dimensions,
+  type GestureResponderEvent, type LayoutChangeEvent,
 } from 'react-native';
 import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
@@ -199,6 +200,42 @@ function weekCandidates(week: (dayjs.Dayjs | null)[], eventsByDay: Map<string, C
   return Array.from(seen.values());
 }
 
+// Touch handling. Each week row has ONE touch surface and works out what was
+// hit from where the finger landed, instead of every day tile, day number,
+// lane cell and bar being its own touchable. A month page used to mount ~116
+// touchables (each an Animated view plus press state), all built on the JS
+// thread as the page swiped in, which is what made fast swiping stutter.
+const COLS = 7;
+
+// Which of the seven day columns a touch at horizontal offset `x` is in.
+export function columnAt(x: number, width: number): number {
+  if (width <= 0) return 0;
+  return Math.min(COLS - 1, Math.max(0, Math.floor((x / width) * COLS)));
+}
+
+// Which lane row (0-based) a touch at vertical offset `y` within a week is in,
+// or -1 above the lanes, in the day-number area.
+export function laneAt(y: number): number {
+  return y < DAY_NUMBER_ROW_HEIGHT ? -1 : Math.floor((y - DAY_NUMBER_ROW_HEIGHT) / LANE_STRIDE);
+}
+
+export type WeekTouch =
+  | { kind: 'event'; segment: LanedSegment }
+  | { kind: 'day'; col: number };
+
+// laneGrid[lane][col] holds the segment covering that column (in every column
+// it spans, not just where it starts), or null for an empty slot.
+export function resolveWeekTouch(
+  x: number,
+  y: number,
+  width: number,
+  laneGrid: (LanedSegment | null)[][],
+): WeekTouch {
+  const col = columnAt(x, width);
+  const segment = laneGrid[laneAt(y)]?.[col];
+  return segment ? { kind: 'event', segment } : { kind: 'day', col };
+}
+
 // One month's 6-week grid. Rendered per pager page so a horizontal swipe slides a
 // full month in and out under the finger instead of the old swipe-then-jump.
 const MonthGrid = memo(function MonthGrid({
@@ -211,32 +248,33 @@ const MonthGrid = memo(function MonthGrid({
   // the constants above for why that still matters.
   const rawMaxLanes = maxLanesFor(pagerHeight / weeks.length);
 
+  // Only read when a touch lands, so a ref: measuring it must not re-render.
+  const widthRef = useRef(Dimensions.get('window').width);
+
   const weekLanes = useMemo(
     () => weeks.map((week) => assignLanes(buildWeekSegments(week, weekCandidates(week, eventsByDay)))),
     [weeks, eventsByDay],
   );
 
   return (
-    <View style={styles.monthPage}>
+    <View
+      style={styles.monthPage}
+      onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
+    >
       {weeks.map((week, wi) => {
         const laned = weekLanes[wi];
         const laneCount = laned.reduce((max, s) => Math.max(max, s.lane + 1), 0);
         const hasOverflow = laneCount > rawMaxLanes;
         const visibleLanes = hasOverflow ? Math.max(0, rawMaxLanes - 1) : laneCount;
 
-        // laneGrid[lane][col]: the segment starting there, 'cont' for a column a
-        // wider bar already covers (skipped, its flex width spans over it), or
-        // null for an empty, still-tappable slot.
-        const laneGrid: (LanedSegment | 'cont' | null)[][] =
-          Array.from({ length: visibleLanes }, () => Array(7).fill(null));
+        const laneGrid: (LanedSegment | null)[][] =
+          Array.from({ length: visibleLanes }, () => Array(COLS).fill(null));
         for (const seg of laned) {
           if (seg.lane >= visibleLanes) continue;
-          for (let c = seg.startCol; c <= seg.endCol; c++) {
-            laneGrid[seg.lane][c] = c === seg.startCol ? seg : 'cont';
-          }
+          for (let c = seg.startCol; c <= seg.endCol; c++) laneGrid[seg.lane][c] = seg;
         }
 
-        const overflowByCol = Array<number>(7).fill(0);
+        const overflowByCol = Array<number>(COLS).fill(0);
         if (hasOverflow) {
           for (const seg of laned) {
             if (seg.lane < visibleLanes) continue;
@@ -244,132 +282,118 @@ const MonthGrid = memo(function MonthGrid({
           }
         }
 
+        const resolve = (e: GestureResponderEvent) =>
+          resolveWeekTouch(e.nativeEvent.locationX, e.nativeEvent.locationY, widthRef.current, laneGrid);
+
         return (
           <View key={wi} style={styles.weekRow}>
-            {/* Behind everything else: one rounded, lighter-tinted tile per day,
-                spanning the whole week's height. Painted first (so it sits behind
-                the number/lane content rendered after it) and covers the entire
-                square, so a tap anywhere NOT already caught by a more specific
-                touchable (day number, event bar, spacer/overflow cell) still
-                reaches this and opens day view — closing the dead zones that used
-                to exist below a mostly-empty day's lane bars. */}
-            <View style={styles.tileRow} pointerEvents="box-none">
-              {week.map((d, di) => {
-                if (d === null) return <View key={di} style={styles.tileSlot} />;
-                return (
-                  <TouchableOpacity
-                    key={di}
-                    testID={`day-tile-${d.format('YYYY-MM-DD')}`}
-                    style={[styles.tileSlot, styles.tile, { backgroundColor: colors.surfaceRaised }]}
-                    onPress={() => onDayPress(d)}
-                    onLongPress={() => onPressCell(d.toDate())}
-                  />
-                );
-              })}
-            </View>
-            <View style={styles.numberRow}>
-              {week.map((d, di) => {
-                if (d === null) {
-                  return <View key={di} style={styles.numberCell} />;
-                }
-                const isToday = d.isSame(today, 'day');
-                const isSelected = d.isSame(selected, 'day');
-
-                return (
-                  <TouchableOpacity
-                    key={di}
-                    testID={isSelected ? `day-selected-${d.format('YYYY-MM-DD')}` : undefined}
-                    style={styles.numberCell}
-                    onPress={() => onDayPress(d)}
-                    onLongPress={() => onPressCell(d.toDate())}
-                  >
-                    <View style={[
-                      styles.dayCircle,
-                      { backgroundColor: isSelected ? colors.primary : 'transparent' },
-                      { borderWidth: isToday && !isSelected ? 1.5 : 0, borderColor: colors.primary },
-                    ]}>
-                      <Text
-                        numberOfLines={1}
-                        allowFontScaling={false}
-                        style={[
-                          styles.dayNumber,
-                          { color: isSelected
-                            ? colors.primaryText
-                            : isToday
-                              ? colors.primary
-                              : colors.text, fontWeight: isSelected || isToday ? '700' : '400' },
-                        ]}>
-                        {d.date()}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            <View style={styles.lanesWrap}>
-              {laneGrid.map((row, li) => (
-                <View key={li} testID="lane-row" style={styles.laneRow}>
-                  {row.map((cell, ci) => {
-                    if (cell === 'cont') return null;
-                    const d = week[ci];
-                    if (cell === null) {
-                      return d === null
-                        ? <View key={ci} testID="lane-cell" style={styles.spacerCell} />
-                        : (
-                          <TouchableOpacity
-                            key={ci}
-                            testID="lane-cell"
-                            style={styles.spacerCell}
-                            onPress={() => onDayPress(d)}
-                            onLongPress={() => onPressCell(d.toDate())}
-                          />
-                        );
-                    }
-                    const span = cell.endCol - cell.startCol + 1;
-                    const segStart = week[cell.startCol]!;
-                    // The flex item carries no margin: margins on a flex item come out
-                    // of the row's shared width, which made every column narrower than
-                    // its day tile and slid bars out of line, more so with each bar in
-                    // the row. The inset lives on the bar inside this wrapper instead.
-                    return (
-                      <View key={ci} testID="lane-cell" style={{ flex: span }}>
-                        <TouchableOpacity
-                          style={[styles.eventBar, { backgroundColor: cell.event.color }]}
-                          onPress={() => onPressEvent(cell.event)}
-                          onLongPress={() => onPressCell(segStart.toDate())}
-                        >
-                          <Text numberOfLines={1} style={[styles.eventBarText, { color: textColorFor(cell.event.color) }]}>
-                            {cell.event.summary}
-                          </Text>
-                        </TouchableOpacity>
+            <Pressable
+              testID="week-touch"
+              style={StyleSheet.absoluteFill}
+              onPress={(e) => {
+                const hit = resolve(e);
+                if (hit.kind === 'event') { onPressEvent(hit.segment.event); return; }
+                const d = week[hit.col];
+                if (d) onDayPress(d);
+              }}
+              onLongPress={(e) => {
+                const hit = resolve(e);
+                const d = hit.kind === 'event' ? week[hit.segment.startCol] : week[hit.col];
+                if (d) onPressCell(d.toDate());
+              }}
+            />
+            {/* Everything visible sits above the touch surface and is inert, so
+                every touch lands on the Pressable and its locationX/Y are
+                relative to the week row rather than to whatever child was hit. */}
+            <View pointerEvents="none" style={styles.weekContent}>
+              <View style={styles.tileRow}>
+                {week.map((d, di) => (
+                  d === null
+                    ? <View key={di} style={styles.tileSlot} />
+                    : <View key={di} style={[styles.tileSlot, styles.tile, { backgroundColor: colors.surfaceRaised }]} />
+                ))}
+              </View>
+              <View style={styles.numberRow}>
+                {week.map((d, di) => {
+                  if (d === null) return <View key={di} style={styles.numberCell} />;
+                  const isToday = d.isSame(today, 'day');
+                  const isSelected = d.isSame(selected, 'day');
+                  return (
+                    <View
+                      key={di}
+                      testID={isSelected ? `day-selected-${d.format('YYYY-MM-DD')}` : undefined}
+                      style={styles.numberCell}
+                    >
+                      <View style={[
+                        styles.dayCircle,
+                        { backgroundColor: isSelected ? colors.primary : 'transparent' },
+                        { borderWidth: isToday && !isSelected ? 1.5 : 0, borderColor: colors.primary },
+                      ]}>
+                        <Text
+                          numberOfLines={1}
+                          allowFontScaling={false}
+                          style={[
+                            styles.dayNumber,
+                            { color: isSelected
+                              ? colors.primaryText
+                              : isToday
+                                ? colors.primary
+                                : colors.text, fontWeight: isSelected || isToday ? '700' : '400' },
+                          ]}>
+                          {d.date()}
+                        </Text>
                       </View>
-                    );
-                  })}
-                </View>
-              ))}
-              {hasOverflow && (
-                <View style={styles.overflowRow}>
-                  {overflowByCol.map((n, ci) => {
-                    const d = week[ci];
-                    if (d === null) return <View key={ci} style={styles.overflowCell} />;
-                    return (
-                      <TouchableOpacity
-                        key={ci}
-                        style={styles.overflowCell}
-                        onPress={() => onDayPress(d)}
-                        onLongPress={() => onPressCell(d.toDate())}
-                      >
-                        {n > 0 && (
-                          <Text numberOfLines={1} style={[styles.overflowText, { color: colors.textTertiary }]}>
-                            +{n}
+                    </View>
+                  );
+                })}
+              </View>
+
+              <View style={styles.lanesWrap}>
+                {laneGrid.map((row, li) => (
+                  <View key={li} testID="lane-row" style={styles.laneRow}>
+                    {row.map((seg, ci) => {
+                      if (!seg || ci !== seg.startCol) return null;
+                      const span = seg.endCol - seg.startCol + 1;
+                      // Placed by percentage of the row, so a bar lines up with its
+                      // day columns exactly and needs no empty spacer views around
+                      // it. The inset is padding on the slot, not a margin on
+                      // anything that shares the row's width.
+                      return (
+                        <View
+                          key={ci}
+                          testID="lane-bar"
+                          style={[styles.barSlot, { left: `${(seg.startCol / COLS) * 100}%`, width: `${(span / COLS) * 100}%` }]}
+                        >
+                          <Text
+                            numberOfLines={1}
+                            style={[styles.eventBar, { backgroundColor: seg.event.color, color: textColorFor(seg.event.color) }]}
+                          >
+                            {seg.event.summary}
                           </Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ))}
+                {hasOverflow && (
+                  <View style={styles.overflowRow}>
+                    {overflowByCol.map((n, ci) => (
+                      n > 0 && week[ci] !== null ? (
+                        <Text
+                          key={ci}
+                          numberOfLines={1}
+                          style={[
+                            styles.overflowText,
+                            { left: `${(ci / COLS) * 100}%`, width: `${100 / COLS}%`, color: colors.textTertiary },
+                          ]}
+                        >
+                          +{n}
+                        </Text>
+                      ) : null
+                    ))}
+                  </View>
+                )}
+              </View>
             </View>
           </View>
         );
@@ -393,57 +417,73 @@ interface MonthGridDotsProps {
 // lighter-weight alternative to MonthGrid's event-bar lanes via
 // settings.monthEventDisplay — no per-page height measurement needed since
 // every cell is the same fixed size regardless of how many events land on it.
+// Same one-touch-surface-per-week approach as MonthGrid.
 const MonthGridDots = memo(function MonthGridDots({
   weeks, selected, today, eventsByDay, colors, onDayPress, onPressCell,
 }: MonthGridDotsProps) {
-  return (
-    <View style={styles.monthPage}>
-      {weeks.map((week, wi) => (
-        <View key={wi} style={styles.dotsWeekRow}>
-          {week.map((d, di) => {
-            if (d === null) {
-              return <View key={di} style={styles.dayCell} />;
-            }
-            const key = d.format('YYYY-MM-DD');
-            const isToday = d.isSame(today, 'day');
-            const isSelected = d.isSame(selected, 'day');
-            const dots = Array.from(new Set((eventsByDay.get(key) ?? []).map((e) => e.color))).slice(0, 3);
+  const widthRef = useRef(Dimensions.get('window').width);
 
-            return (
-              <TouchableOpacity
-                key={di}
-                testID={isSelected ? `day-selected-${key}` : undefined}
-                style={[styles.dayCell, styles.tile, { backgroundColor: colors.surfaceRaised }]}
-                onPress={() => onDayPress(d)}
-                onLongPress={() => onPressCell(d.toDate())}
-              >
-                <View style={[
-                  styles.dayCircle,
-                  { backgroundColor: isSelected ? colors.primary : 'transparent' },
-                  { borderWidth: isToday && !isSelected ? 1.5 : 0, borderColor: colors.primary },
-                ]}>
-                  <Text
-                    numberOfLines={1}
-                    allowFontScaling={false}
-                    style={[
-                      styles.dayNumber,
-                      { color: isSelected
-                        ? colors.primaryText
-                        : isToday
-                          ? colors.primary
-                          : colors.text, fontWeight: isSelected || isToday ? '700' : '400' },
-                    ]}>
-                    {d.date()}
-                  </Text>
+  return (
+    <View
+      style={styles.monthPage}
+      onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
+    >
+      {weeks.map((week, wi) => (
+        <View key={wi} style={styles.weekRow}>
+          <Pressable
+            testID="week-touch"
+            style={StyleSheet.absoluteFill}
+            onPress={(e) => {
+              const d = week[columnAt(e.nativeEvent.locationX, widthRef.current)];
+              if (d) onDayPress(d);
+            }}
+            onLongPress={(e) => {
+              const d = week[columnAt(e.nativeEvent.locationX, widthRef.current)];
+              if (d) onPressCell(d.toDate());
+            }}
+          />
+          <View pointerEvents="none" style={styles.dotsWeekRow}>
+            {week.map((d, di) => {
+              if (d === null) return <View key={di} style={styles.dayCell} />;
+              const key = d.format('YYYY-MM-DD');
+              const isToday = d.isSame(today, 'day');
+              const isSelected = d.isSame(selected, 'day');
+              const dots = Array.from(new Set((eventsByDay.get(key) ?? []).map((e) => e.color))).slice(0, 3);
+
+              return (
+                <View
+                  key={di}
+                  testID={isSelected ? `day-selected-${key}` : undefined}
+                  style={[styles.dayCell, styles.tile, { backgroundColor: colors.surfaceRaised }]}
+                >
+                  <View style={[
+                    styles.dayCircle,
+                    { backgroundColor: isSelected ? colors.primary : 'transparent' },
+                    { borderWidth: isToday && !isSelected ? 1.5 : 0, borderColor: colors.primary },
+                  ]}>
+                    <Text
+                      numberOfLines={1}
+                      allowFontScaling={false}
+                      style={[
+                        styles.dayNumber,
+                        { color: isSelected
+                          ? colors.primaryText
+                          : isToday
+                            ? colors.primary
+                            : colors.text, fontWeight: isSelected || isToday ? '700' : '400' },
+                      ]}>
+                      {d.date()}
+                    </Text>
+                  </View>
+                  <View style={styles.dotsRow}>
+                    {dots.map((color, ci) => (
+                      <View key={ci} testID="month-event-dot" style={[styles.dot, { backgroundColor: color }]} />
+                    ))}
+                  </View>
                 </View>
-                <View style={styles.dotsRow}>
-                  {dots.map((color, ci) => (
-                    <View key={ci} testID="month-event-dot" style={[styles.dot, { backgroundColor: color }]} />
-                  ))}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+              );
+            })}
+          </View>
         </View>
       ))}
     </View>
@@ -633,6 +673,7 @@ const styles = StyleSheet.create({
   pagerWrap: { flex: 1 },
   monthPage: { flex: 1 },
   weekRow: { flex: 1 },
+  weekContent: { flex: 1 },
   tileRow: { flexDirection: 'row', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   tileSlot: { flex: 1 },
   tile: { margin: TILE_MARGIN, borderRadius: 10 },
@@ -646,11 +687,19 @@ const styles = StyleSheet.create({
   dotsRow: { flexDirection: 'row', gap: 2, marginTop: 2 },
   dot: { width: 5, height: 5, borderRadius: 3 },
   lanesWrap: { flex: 1 },
-  laneRow: { flexDirection: 'row', height: LANE_HEIGHT, marginTop: LANE_GAP },
-  spacerCell: { flex: 1 },
-  eventBar: { borderRadius: 3, marginHorizontal: BAR_INSET, paddingHorizontal: 3, justifyContent: 'center', height: LANE_HEIGHT - 2 },
-  eventBarText: { fontSize: 9, fontWeight: '600' },
-  overflowRow: { flexDirection: 'row', height: LANE_HEIGHT, marginTop: LANE_GAP },
-  overflowCell: { flex: 1, alignItems: 'center' },
-  overflowText: { fontSize: 9, fontWeight: '600' },
+  laneRow: { height: LANE_HEIGHT, marginTop: LANE_GAP },
+  barSlot: { position: 'absolute', top: 0, paddingHorizontal: BAR_INSET },
+  eventBar: {
+    borderRadius: 3,
+    overflow: 'hidden',
+    paddingHorizontal: 3,
+    height: LANE_HEIGHT - 2,
+    lineHeight: LANE_HEIGHT - 2,
+    fontSize: 9,
+    fontWeight: '600',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  overflowRow: { height: LANE_HEIGHT, marginTop: LANE_GAP },
+  overflowText: { position: 'absolute', top: 0, textAlign: 'center', fontSize: 9, fontWeight: '600' },
 });

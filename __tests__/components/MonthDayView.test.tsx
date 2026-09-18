@@ -1,13 +1,13 @@
 import React from 'react';
-import { render as rtlRender, act, fireEvent, within } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { render as rtlRender, act, fireEvent } from '@testing-library/react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import { ThemeWrapper } from '../helpers/theme';
 import dayjs from 'dayjs';
 
 const render = (ui: React.ReactElement, opts?: Parameters<typeof rtlRender>[1]) =>
   rtlRender(ui, { wrapper: ThemeWrapper, ...opts });
 import 'dayjs/locale/fr';
-import { MonthDayView, buildMonthGrid, eventDayKeys, buildWeekSegments, assignLanes, maxLanesFor } from '@/features/calendar/components/MonthDayView';
+import { MonthDayView, buildMonthGrid, eventDayKeys, buildWeekSegments, assignLanes, maxLanesFor, columnAt, laneAt, resolveWeekTouch } from '@/features/calendar/components/MonthDayView';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { CalendarEvent } from '../../src/types';
 
@@ -194,70 +194,160 @@ describe('MonthDayView', () => {
     expect(dayjs(onMonthChange.mock.calls[1][0]).format('YYYY-MM-DD')).toBe('2026-04-01');
   });
 
-  it('presses a day cell through to onSelectDate, the hook used to jump straight into day view', () => {
-    const onSelectDate = jest.fn();
-    const { getByTestId } = render(
-      <MonthDayView
-        date={june10}
-        events={[]}
-        weekStartsOn={0}
-        jump={{ nonce: 0, target: june10 }}
-        onSelectDate={onSelectDate}
-        onMonthChange={jest.fn()}
-        onPressEvent={jest.fn()}
-        onPressCell={jest.fn()}
-      />
-    );
+  // Touches: each week row has one touch surface and the handler works out the
+  // day / event from where the finger landed. June 2026 (Sunday-first): row 1
+  // is Jun 7-13 (Wed 10 is column 3), row 2 is Jun 14-20 (Mon 15 is column 1);
+  // row 0 has no Sunday (May 31 is outside the month).
+  const width = Dimensions.get('window').width;
+  const xIn = (col: number) => ((col + 0.5) * width) / 7;
+  const NUMBER_ROW_Y = 10;
+  const LANE_Y = (lane: number) => 34 + lane * 16 + 8;
 
-    fireEvent.press(getByTestId('day-selected-2026-06-10'));
-
-    expect(onSelectDate).toHaveBeenCalledWith(expect.any(Date));
-    expect(dayjs(onSelectDate.mock.calls[0][0]).format('YYYY-MM-DD')).toBe('2026-06-10');
-  });
-
-  it('presses the day tile (blank space below a mostly-empty day) through to onSelectDate, same as the day number', () => {
-    const onSelectDate = jest.fn();
-    const { getByTestId } = render(
-      <MonthDayView
-        date={june10}
-        events={[event]}
-        weekStartsOn={0}
-        jump={{ nonce: 0, target: june10 }}
-        onSelectDate={onSelectDate}
-        onMonthChange={jest.fn()}
-        onPressEvent={jest.fn()}
-        onPressCell={jest.fn()}
-      />
-    );
-
-    // june15 has an event but plenty of otherwise-untappable blank square
-    // below its lane bar — the whole-square tile is what covers that.
-    fireEvent.press(getByTestId('day-tile-2026-06-15'));
-
-    expect(onSelectDate).toHaveBeenCalledWith(expect.any(Date));
-    expect(dayjs(onSelectDate.mock.calls[0][0]).format('YYYY-MM-DD')).toBe('2026-06-15');
-  });
-
-  it('presses an event bar through to onPressEvent, not onSelectDate — the grid is the only way left to open an event', () => {
+  function touchable(events: CalendarEvent[]) {
     const onSelectDate = jest.fn();
     const onPressEvent = jest.fn();
-    const { getByText } = render(
+    const onPressCell = jest.fn();
+    const utils = render(
       <MonthDayView
         date={june10}
-        events={[event]}
+        events={events}
         weekStartsOn={0}
         jump={{ nonce: 0, target: june10 }}
         onSelectDate={onSelectDate}
         onMonthChange={jest.fn()}
         onPressEvent={onPressEvent}
-        onPressCell={jest.fn()}
+        onPressCell={onPressCell}
       />
     );
+    const week = (i: number) => utils.getAllByTestId('week-touch')[i];
+    const press = (i: number, col: number, y: number) =>
+      fireEvent.press(week(i), { nativeEvent: { locationX: xIn(col), locationY: y } });
+    const longPress = (i: number, col: number, y: number) =>
+      fireEvent(week(i), 'longPress', { nativeEvent: { locationX: xIn(col), locationY: y } });
+    return { onSelectDate, onPressEvent, onPressCell, press, longPress };
+  }
+  const dayOf = (fn: jest.Mock) => dayjs(fn.mock.calls[0][0]).format('YYYY-MM-DD');
 
-    fireEvent.press(getByText('Birthday Party'));
+  it('presses a day number through to onSelectDate, the hook used to jump straight into day view', () => {
+    const { onSelectDate, press } = touchable([]);
+    press(1, 3, NUMBER_ROW_Y);
+    expect(onSelectDate).toHaveBeenCalledTimes(1);
+    expect(dayOf(onSelectDate)).toBe('2026-06-10');
+  });
 
+  it('presses the blank square below a day through to onSelectDate, same as its number', () => {
+    const { onSelectDate, press } = touchable([event]);
+    // Jun 15 has a bar in lane 0; lane 2 of the same day is empty square.
+    press(2, 1, LANE_Y(2));
+    expect(dayOf(onSelectDate)).toBe('2026-06-15');
+  });
+
+  it('presses an event bar through to onPressEvent, not onSelectDate — the grid is the only way left to open an event', () => {
+    const { onSelectDate, onPressEvent, press } = touchable([event]);
+    press(2, 1, LANE_Y(0));
     expect(onPressEvent).toHaveBeenCalledWith(event);
     expect(onSelectDate).not.toHaveBeenCalled();
+  });
+
+  it('treats the empty part of a lane row beside a bar as its own day, not the bar', () => {
+    const { onSelectDate, onPressEvent, press } = touchable([event]);
+    press(2, 2, LANE_Y(0)); // Jun 16, same lane row as Jun 15's bar
+    expect(onPressEvent).not.toHaveBeenCalled();
+    expect(dayOf(onSelectDate)).toBe('2026-06-16');
+  });
+
+  it('opens a multi-day event from any day it covers', () => {
+    const trip = { ...event, uid: 'trip', summary: 'Trip', dtstart: new Date(2026, 5, 16), dtend: new Date(2026, 5, 18), allDay: true };
+    for (const col of [2, 3, 4]) {
+      const { onPressEvent, press } = touchable([trip]);
+      press(2, col, LANE_Y(0));
+      expect(onPressEvent).toHaveBeenCalledWith(trip);
+    }
+  });
+
+  it('ignores a touch on a column outside the month', () => {
+    const { onSelectDate, onPressEvent, press } = touchable([event]);
+    press(0, 0, NUMBER_ROW_Y); // May 31: not part of June's grid
+    expect(onSelectDate).not.toHaveBeenCalled();
+    expect(onPressEvent).not.toHaveBeenCalled();
+  });
+
+  it('long-presses a day to create an event there, and a bar to create one on the bar\'s first day', () => {
+    const day = touchable([event]);
+    day.longPress(1, 3, NUMBER_ROW_Y);
+    expect(dayOf(day.onPressCell)).toBe('2026-06-10');
+
+    const bar = touchable([{ ...event, dtstart: new Date(2026, 5, 16), dtend: new Date(2026, 5, 18), allDay: true }]);
+    bar.longPress(2, 3, LANE_Y(0)); // middle of a Jun 16-18 bar
+    expect(dayOf(bar.onPressCell)).toBe('2026-06-16');
+  });
+});
+
+describe('MonthDayView dots mode touches', () => {
+  afterEach(() => {
+    act(() => { useSettingsStore.getState().setMonthEventDisplay('bars'); });
+  });
+
+  it('presses a day through to onSelectDate and long-presses through to onPressCell', () => {
+    act(() => { useSettingsStore.getState().setMonthEventDisplay('dots'); });
+    const onSelectDate = jest.fn();
+    const onPressCell = jest.fn();
+    const { getAllByTestId } = render(
+      <MonthDayView
+        date={june10}
+        events={[event]}
+        weekStartsOn={0}
+        jump={{ nonce: 0, target: june10 }}
+        onSelectDate={onSelectDate}
+        onMonthChange={jest.fn()}
+        onPressEvent={jest.fn()}
+        onPressCell={onPressCell}
+      />
+    );
+    const width = Dimensions.get('window').width;
+    const week = getAllByTestId('week-touch')[2]; // Jun 14-20
+    const at = { nativeEvent: { locationX: (1.5 * width) / 7, locationY: 40 } };
+
+    fireEvent.press(week, at);
+    fireEvent(week, 'longPress', at);
+
+    expect(dayjs(onSelectDate.mock.calls[0][0]).format('YYYY-MM-DD')).toBe('2026-06-15');
+    expect(dayjs(onPressCell.mock.calls[0][0]).format('YYYY-MM-DD')).toBe('2026-06-15');
+  });
+});
+
+describe('week touch hit-testing', () => {
+  const seg = (col0: number, col1: number) => ({ event, startCol: col0, endCol: col1, lane: 0 });
+
+  it('maps a horizontal offset to one of seven equal columns and clamps the edges', () => {
+    expect(columnAt(0, 700)).toBe(0);
+    expect(columnAt(99, 700)).toBe(0);
+    expect(columnAt(100, 700)).toBe(1);
+    expect(columnAt(699, 700)).toBe(6);
+    expect(columnAt(-20, 700)).toBe(0);
+    expect(columnAt(9999, 700)).toBe(6);
+  });
+
+  it('maps a vertical offset to a lane row, or -1 in the day number area', () => {
+    expect(laneAt(0)).toBe(-1);
+    expect(laneAt(33)).toBe(-1);
+    expect(laneAt(34)).toBe(0);
+    expect(laneAt(49)).toBe(0);
+    expect(laneAt(50)).toBe(1);
+  });
+
+  it('resolves a touch on a bar to its event in every column the bar spans', () => {
+    const grid = [[null, seg(1, 3), seg(1, 3), seg(1, 3), null, null, null]];
+    for (const col of [1, 2, 3]) {
+      expect(resolveWeekTouch(100 * col + 50, 40, 700, grid)).toEqual({ kind: 'event', segment: seg(1, 3) });
+    }
+    expect(resolveWeekTouch(450, 40, 700, grid)).toEqual({ kind: 'day', col: 4 });
+  });
+
+  it('resolves a touch above the lanes, or in a lane row that does not exist, to the day', () => {
+    const grid = [[seg(0, 0), null, null, null, null, null, null]];
+    expect(resolveWeekTouch(50, 10, 700, grid)).toEqual({ kind: 'day', col: 0 });
+    expect(resolveWeekTouch(50, 200, 700, grid)).toEqual({ kind: 'day', col: 0 });
   });
 });
 
@@ -396,8 +486,9 @@ describe('MonthDayView lane alignment', () => {
     dtstart: new Date(2026, 5, 16), dtend: new Date(2026, 5, 18),
     allDay: true, color: '#e74c3c', attendees: [], isRecurring: false,
   };
+  const COLUMN = 100 / 7;
 
-  function laneRows() {
+  function bars() {
     const { getAllByTestId } = render(
       <MonthDayView
         date={june10}
@@ -410,30 +501,36 @@ describe('MonthDayView lane alignment', () => {
         onPressCell={jest.fn()}
       />
     );
-    return getAllByTestId('lane-row').map((row) => within(row).getAllByTestId('lane-cell'));
+    return getAllByTestId('lane-bar').map((b) => {
+      const st = StyleSheet.flatten(b.props.style);
+      return { left: parseFloat(st.left as string), width: parseFloat(st.width as string), style: st };
+    });
   }
 
-  it('adds up to exactly seven columns in every lane row, so bars line up with the day tiles', () => {
-    for (const cells of laneRows()) {
-      const total = cells.reduce((sum, c) => sum + (StyleSheet.flatten(c.props.style).flex as number), 0);
-      expect(total).toBe(7);
+  it('starts every bar exactly on a column boundary and gives it a whole number of columns', () => {
+    for (const b of bars()) {
+      expect(b.left / COLUMN).toBeCloseTo(Math.round(b.left / COLUMN), 5);
+      expect(b.width / COLUMN).toBeCloseTo(Math.round(b.width / COLUMN), 5);
     }
   });
 
-  it('puts no margin on any lane column, since a margin takes width from the shared columns', () => {
-    for (const cells of laneRows()) {
-      for (const c of cells) {
-        const style = StyleSheet.flatten(c.props.style);
-        expect(style.margin ?? 0).toBe(0);
-        expect(style.marginHorizontal ?? 0).toBe(0);
-        expect(style.marginLeft ?? 0).toBe(0);
-        expect(style.marginRight ?? 0).toBe(0);
-      }
-    }
+  it('never lets a bar run past the right edge of the week', () => {
+    for (const b of bars()) expect(b.left + b.width).toBeLessThanOrEqual(100 + 1e-9);
   });
 
   it('gives a multi-day bar as many columns as days it covers within the week', () => {
-    const spans = laneRows().flat().map((c) => StyleSheet.flatten(c.props.style).flex as number);
-    expect(spans).toContain(3);
+    // Jun 16-18 is Tue-Thu: columns 2-4, so it starts at column 2 and is 3 wide.
+    const multi = bars().find((b) => Math.round(b.width / COLUMN) === 3)!;
+    expect(multi.left / COLUMN).toBeCloseTo(2, 5);
+  });
+
+  it('insets bars with padding, never a margin that could shift them off their columns', () => {
+    for (const b of bars()) {
+      expect(b.style.margin ?? 0).toBe(0);
+      expect(b.style.marginHorizontal ?? 0).toBe(0);
+      expect(b.style.marginLeft ?? 0).toBe(0);
+      expect(b.style.marginRight ?? 0).toBe(0);
+      expect(b.style.paddingHorizontal).toBeGreaterThan(0);
+    }
   });
 });
