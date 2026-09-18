@@ -3048,6 +3048,32 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@shopify/react-native-skia@npm:2.6.2":
+  version: 2.6.2
+  resolution: "@shopify/react-native-skia@npm:2.6.2"
+  dependencies:
+    canvaskit-wasm: "npm:0.41.0"
+    react-native-skia-android: "npm:147.1.0"
+    react-native-skia-apple-ios: "npm:147.1.0"
+    react-native-skia-apple-macos: "npm:147.1.0"
+    react-native-skia-apple-tvos: "npm:147.1.0"
+    react-reconciler: "npm:0.31.0"
+  peerDependencies:
+    react: ">=19.0"
+    react-native: ">=0.78"
+    react-native-reanimated: ">=3.19.1"
+  peerDependenciesMeta:
+    react-native:
+      optional: true
+    react-native-reanimated:
+      optional: true
+  bin:
+    install-skia: scripts/install-libs.js
+    setup-skia-web: scripts/setup-canvaskit.js
+  checksum: 10c0/459e024c6c93737b7cb170813e334e361ae5df17245b4db49733b6b551a310f209c71864d6b28cb5ee5e62283a5f31cd5b5812faa910756ff7ea6ef35629f66f
+  languageName: node
+  linkType: hard
+
 "@simple-libs/child-process-utils@npm:^1.0.0":
   version: 1.0.2
   resolution: "@simple-libs/child-process-utils@npm:1.0.2"
@@ -3362,6 +3388,13 @@ __metadata:
   version: 1.3.3
   resolution: "@ungap/structured-clone@npm:1.3.3"
   checksum: 10c0/b199e280ee06e9c447e0ccd38df60a65c2b2c13d3c77af50b1e6d77230aee1ea7da309d7b80c5a4850c8e22e4eee9e4b2813c6a33f8c360560d7f2e99a9f6e8f
+  languageName: node
+  linkType: hard
+
+"@webgpu/types@npm:0.1.21":
+  version: 0.1.21
+  resolution: "@webgpu/types@npm:0.1.21"
+  checksum: 10c0/74de9683b70064aeadcdd31381747650b323e7e2183fb38f90a35f1a79f80ad267c0a2ee5010c264befb3d31ad213dbdffa04897e2808f6b04feff8d66bc53e0
   languageName: node
   linkType: hard
 
@@ -4131,6 +4164,15 @@ __metadata:
   version: 1.0.30001809
   resolution: "caniuse-lite@npm:1.0.30001809"
   checksum: 10c0/cac2ed4e66cc6c4cbf126b94d2c02012566eb92f93c89949290f99edcd2bdc4ed1290b5c537ccb9b42c773936a479ed468e5d4e9b8938b126a0947090e42e008
+  languageName: node
+  linkType: hard
+
+"canvaskit-wasm@npm:0.41.0":
+  version: 0.41.0
+  resolution: "canvaskit-wasm@npm:0.41.0"
+  dependencies:
+    "@webgpu/types": "npm:0.1.21"
+  checksum: 10c0/a55eb2cb627f2cdf017e05dba794c35225725af13c223c573ffb04f9f783d16e6c80fa0eb21a712c7b0a56f29dc0a693aee1eee61fe75e2b74e821a10236d8ef
   languageName: node
   linkType: hard
 
@@ -8551,6 +8593,7 @@ __metadata:
     "@react-native/jest-preset": "npm:0.86.0"
     "@release-it/bumper": "npm:^7.0.5"
     "@release-it/conventional-changelog": "npm:^10.0.6"
+    "@shopify/react-native-skia": "npm:2.6.2"
     "@testing-library/jest-native": "npm:^5.4.3"
     "@testing-library/react-native": "npm:^13.3.3"
     "@types/jest": "npm:^29.5.14"
@@ -9597,6 +9640,34 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-skia-android@npm:147.1.0":
+  version: 147.1.0
+  resolution: "react-native-skia-android@npm:147.1.0"
+  checksum: 10c0/c2f938db0550fc99095bc01154b6d002b4e841c67ff6350187355c88930e8115add3e0b736bdcbf1db67a368a9314b2ea11f73248bcd15f09926d005b022e019
+  languageName: node
+  linkType: hard
+
+"react-native-skia-apple-ios@npm:147.1.0":
+  version: 147.1.0
+  resolution: "react-native-skia-apple-ios@npm:147.1.0"
+  checksum: 10c0/77f9b49d3db472a64af4aa298160bcee9528022d9830e091be1c0e840ec6e55df94e03bffabee2e8e3e6303b5c4a8101798104850df8a5a681d785f2f6c45c4b
+  languageName: node
+  linkType: hard
+
+"react-native-skia-apple-macos@npm:147.1.0":
+  version: 147.1.0
+  resolution: "react-native-skia-apple-macos@npm:147.1.0"
+  checksum: 10c0/c33843d0b3244bd250508550468d20a51763abc6cf41ea1a3e0893fd63e695a3325cfe4f513340561fbf6515add8bd55d9dd873b1f6ae4a021b6b78fe71d5b57
+  languageName: node
+  linkType: hard
+
+"react-native-skia-apple-tvos@npm:147.1.0":
+  version: 147.1.0
+  resolution: "react-native-skia-apple-tvos@npm:147.1.0"
+  checksum: 10c0/eaf3a8970dc9e49af7221ed4381fc2ac2a61acf68f8d854c26df5836845beceb816dd06c8b4e3aa13940c461c89e115b0b9a97694eeff3a32e9fee3bd9611811
+  languageName: node
+  linkType: hard
+
 "react-native-svg@npm:15.15.4":
   version: 15.15.4
   resolution: "react-native-svg@npm:15.15.4"
@@ -9709,6 +9780,17 @@ __metadata:
   bin:
     react-native: cli.js
   checksum: 10c0/47a569c47a22b37526ac54e17d1f42c6a191ca7cd30230bc16ee5307ac53da1db89d27ba20c76e9756fb646866d89fedfc1852b1ddc15c47bde45c899079096a
+  languageName: node
+  linkType: hard
+
+"react-reconciler@npm:0.31.0":
+  version: 0.31.0
+  resolution: "react-reconciler@npm:0.31.0"
+  dependencies:
+    scheduler: "npm:^0.25.0"
+  peerDependencies:
+    react: ^19.0.0
+  checksum: 10c0/97920e1866c7206e200c3920c133c2e85f62a3c54fd9bc4b83c10c558d83d98eb378caab4fe37498e0cc1b1b2665d898627f2ae2537b29c8ab295ec8abc0c580
   languageName: node
   linkType: hard
 
@@ -10091,6 +10173,13 @@ __metadata:
   version: 0.27.0
   resolution: "scheduler@npm:0.27.0"
   checksum: 10c0/4f03048cb05a3c8fddc45813052251eca00688f413a3cee236d984a161da28db28ba71bd11e7a3dd02f7af84ab28d39fb311431d3b3772fed557945beb00c452
+  languageName: node
+  linkType: hard
+
+"scheduler@npm:^0.25.0":
+  version: 0.25.0
+  resolution: "scheduler@npm:0.25.0"
+  checksum: 10c0/a4bb1da406b613ce72c1299db43759526058fdcc413999c3c3e0db8956df7633acf395cb20eb2303b6a65d658d66b6585d344460abaee8080b4aa931f10eaafe
   languageName: node
   linkType: hard
 
