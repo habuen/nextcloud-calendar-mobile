@@ -214,6 +214,29 @@ describe('MonthDayView', () => {
     expect(dayjs(onSelectDate.mock.calls[0][0]).format('YYYY-MM-DD')).toBe('2026-06-10');
   });
 
+  it('presses the day tile (blank space below a mostly-empty day) through to onSelectDate, same as the day number', () => {
+    const onSelectDate = jest.fn();
+    const { getByTestId } = render(
+      <MonthDayView
+        date={june10}
+        events={[event]}
+        weekStartsOn={0}
+        jump={{ nonce: 0, target: june10 }}
+        onSelectDate={onSelectDate}
+        onMonthChange={jest.fn()}
+        onPressEvent={jest.fn()}
+        onPressCell={jest.fn()}
+      />
+    );
+
+    // june15 has an event but plenty of otherwise-untappable blank square
+    // below its lane bar — the whole-square tile is what covers that.
+    fireEvent.press(getByTestId('day-tile-2026-06-15'));
+
+    expect(onSelectDate).toHaveBeenCalledWith(expect.any(Date));
+    expect(dayjs(onSelectDate.mock.calls[0][0]).format('YYYY-MM-DD')).toBe('2026-06-15');
+  });
+
   it('presses an event bar through to onPressEvent, not onSelectDate — the grid is the only way left to open an event', () => {
     const onSelectDate = jest.fn();
     const onPressEvent = jest.fn();

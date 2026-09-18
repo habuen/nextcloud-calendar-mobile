@@ -230,6 +230,27 @@ const MonthGrid = memo(function MonthGrid({
 
         return (
           <View key={wi} style={styles.weekRow}>
+            {/* Behind everything else: one rounded, lighter-tinted tile per day,
+                spanning the whole week's height. Painted first (so it sits behind
+                the number/lane content rendered after it) and covers the entire
+                square, so a tap anywhere NOT already caught by a more specific
+                touchable (day number, event bar, spacer/overflow cell) still
+                reaches this and opens day view — closing the dead zones that used
+                to exist below a mostly-empty day's lane bars. */}
+            <View style={styles.tileRow} pointerEvents="box-none">
+              {week.map((d, di) => {
+                if (d === null) return <View key={di} style={styles.tileSlot} />;
+                return (
+                  <TouchableOpacity
+                    key={di}
+                    testID={`day-tile-${d.format('YYYY-MM-DD')}`}
+                    style={[styles.tileSlot, styles.tile, { backgroundColor: colors.surfaceRaised }]}
+                    onPress={() => onDayPress(d)}
+                    onLongPress={() => onPressCell(d.toDate())}
+                  />
+                );
+              })}
+            </View>
             <View style={styles.numberRow}>
               {week.map((d, di) => {
                 if (d === null) {
@@ -370,7 +391,7 @@ const MonthGridDots = memo(function MonthGridDots({
               <TouchableOpacity
                 key={di}
                 testID={isSelected ? `day-selected-${key}` : undefined}
-                style={styles.dayCell}
+                style={[styles.dayCell, styles.tile, { backgroundColor: colors.surfaceRaised }]}
                 onPress={() => onDayPress(d)}
                 onLongPress={() => onPressCell(d.toDate())}
               >
@@ -555,7 +576,7 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
   ]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
       <View style={styles.grid} onLayout={handleGridLayout}>
         <View style={styles.dowRow}>
           {dayHeaders.map((d, i) => (
@@ -590,6 +611,9 @@ const styles = StyleSheet.create({
   pagerWrap: { flex: 1 },
   monthPage: { flex: 1 },
   weekRow: { flex: 1 },
+  tileRow: { flexDirection: 'row', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  tileSlot: { flex: 1 },
+  tile: { margin: 2, borderRadius: 10 },
   numberRow: { flexDirection: 'row' },
   numberCell: { flex: 1, alignItems: 'center', paddingTop: 2 },
   dayCircle: { width: 32, height: 32, borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
