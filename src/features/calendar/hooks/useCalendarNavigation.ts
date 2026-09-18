@@ -6,6 +6,9 @@ import type { ViewMode } from '@/types';
 import { isCalMode } from '../constants';
 
 const FETCH_DATE_DEBOUNCE_MS = 150;
+// How many earlier views Back can step through before it gives up and lets the
+// app close.
+const MAX_VIEW_HISTORY = 10;
 
 export function useCalendarNavigation() {
   const viewMode = useCalendarStore((s) => s.viewMode);
@@ -42,7 +45,17 @@ export function useCalendarNavigation() {
 
   useEffect(() => { if (viewMode === 'schedule') setAgendaVisibleDate(date); }, [date, viewMode]);
 
-  const switchMode = useCallback((target: ViewMode) => {
+  // Views the user has come from, most recent last, so Back can retrace them
+  // instead of closing the app.
+  const viewHistory = useRef<ViewMode[]>([]);
+  const rememberCurrentView = useCallback((next: ViewMode) => {
+    const current = viewModeRef.current;
+    if (next === current) return;
+    viewHistory.current.push(current);
+    if (viewHistory.current.length > MAX_VIEW_HISTORY) viewHistory.current.shift();
+  }, []);
+
+  const applyMode = useCallback((target: ViewMode) => {
     const focus = viewModeRef.current === 'schedule'
       ? agendaVisibleDateRef.current
       : dateRef.current;
@@ -52,6 +65,24 @@ export function useCalendarNavigation() {
     }
     setViewMode(target);
   }, [setViewMode, setDate]);
+
+  const switchMode = useCallback((target: ViewMode) => {
+    rememberCurrentView(target);
+    applyMode(target);
+  }, [rememberCurrentView, applyMode]);
+
+  // Steps back to the view the user came from, if any. Returns whether it
+  // handled the Back press; false means there was nowhere to go back to, so the
+  // caller should let the app close as usual.
+  const goBack = useCallback((): boolean => {
+    const history = viewHistory.current;
+    const current = viewModeRef.current;
+    while (history.length > 0 && history[history.length - 1] === current) history.pop();
+    const previous = history.pop();
+    if (!previous) return false;
+    applyMode(previous);
+    return true;
+  }, [applyMode]);
 
   const goToday = useCallback(() => {
     const now = new Date();
@@ -67,10 +98,11 @@ export function useCalendarNavigation() {
   // which would still be stale immediately after a caller's own setDate(d)
   // in the same handler (the ref only updates on the next render).
   const goToDay = useCallback((d: Date) => {
+    rememberCurrentView('day');
     setAnchorDate(d);
     setDate(d);
     setViewMode('day');
-  }, [setDate, setViewMode]);
+  }, [rememberCurrentView, setDate, setViewMode]);
 
   return {
     viewMode,
@@ -86,6 +118,7 @@ export function useCalendarNavigation() {
     switchMode,
     goToday,
     goToDay,
+    goBack,
     onPageChange,
   };
 }

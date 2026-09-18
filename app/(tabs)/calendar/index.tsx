@@ -1,7 +1,7 @@
 import { useCallback, useDeferredValue, useMemo, useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, BackHandler } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
@@ -14,6 +14,7 @@ import { OfflineBanner } from '@/features/calendar/components/OfflineBanner';
 import { MonthDayView } from '@/features/calendar/components/MonthDayView';
 import { AgendaView } from '@/features/calendar/components/AgendaView';
 import { createNavigationGuard } from '@/utils/navigationGuard';
+import { handleCalendarBack } from '@/features/calendar/utils/backPress';
 import type { CalendarEvent, RecurrenceEditScope } from '@/types';
 import { useCalendarNavigation } from '@/features/calendar/hooks/useCalendarNavigation';
 import { useCalendarData } from '@/features/calendar/hooks/useCalendarData';
@@ -133,6 +134,19 @@ export default function CalendarScreen() {
     }
     return monthYear;
   }, [date, agendaVisibleDate, viewMode, language, t]);
+
+  // Back closes the drawer first, then retraces the views (e.g. day -> month)
+  // before it's allowed to close the app. Only while this screen is focused, so
+  // event screens pushed on top keep their own Back.
+  const { goBack } = nav;
+  const { drawerOpen, closeDrawer } = drawer;
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener('hardwareBackPress', () =>
+        handleCalendarBack({ drawerOpen, closeDrawer, goBack }));
+      return () => subscription.remove();
+    }, [drawerOpen, closeDrawer, goBack]),
+  );
 
   if (calendarApp === 'unconfigured') {
     return <CalendarUnavailable />;

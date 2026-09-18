@@ -122,4 +122,101 @@ describe('useCalendarNavigation', () => {
     expect(result.current.jump.target.toDateString()).toBe(today);
     expect(result.current.anchorDate).toBe(anchorBefore);
   });
+
+  describe('goBack', () => {
+    const day = new Date('2026-08-12T00:00:00Z');
+
+    it('has nowhere to go back to at first, so the app is allowed to close', () => {
+      const { result } = renderHook(() => useCalendarNavigation());
+      let handled = true;
+      act(() => { handled = result.current.goBack(); });
+      expect(handled).toBe(false);
+    });
+
+    it('goes from a day opened out of month view back to month view', () => {
+      const { result } = renderHook(() => useCalendarNavigation());
+      act(() => { result.current.switchMode('month'); });
+      act(() => { result.current.goToDay(day); });
+      expect(result.current.viewMode).toBe('day');
+
+      let handled = false;
+      act(() => { handled = result.current.goBack(); });
+
+      expect(handled).toBe(true);
+      expect(result.current.viewMode).toBe('month');
+    });
+
+    it('keeps the day being looked at when going back, so month view shows that month', () => {
+      const { result } = renderHook(() => useCalendarNavigation());
+      act(() => { result.current.switchMode('month'); });
+      act(() => { result.current.goToDay(day); });
+      const later = new Date('2026-09-03T00:00:00Z');
+      act(() => { result.current.onPageChange(later); });
+
+      act(() => { result.current.goBack(); });
+
+      expect(result.current.date).toEqual(later);
+      expect(result.current.anchorDate).toEqual(later);
+    });
+
+    it('retraces several views in reverse order, then lets the app close', () => {
+      const { result } = renderHook(() => useCalendarNavigation());
+      act(() => { result.current.switchMode('month'); });
+      act(() => { result.current.switchMode('week'); });
+      act(() => { result.current.goToDay(day); });
+
+      const seen: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        let handled = false;
+        act(() => { handled = result.current.goBack(); });
+        seen.push(handled ? result.current.viewMode : 'closed');
+      }
+
+      expect(seen).toEqual(['week', 'month', expect.any(String)]);
+      // The third press goes back to whatever view the app started in; the
+      // fourth has nothing left.
+      let handled = true;
+      act(() => { handled = result.current.goBack(); });
+      expect(handled).toBe(false);
+    });
+
+    it('does not record a view change to the view already showing', () => {
+      const { result } = renderHook(() => useCalendarNavigation());
+      act(() => { result.current.switchMode('month'); });
+      act(() => { result.current.switchMode('month'); });
+      act(() => { result.current.switchMode('month'); });
+
+      act(() => { result.current.goBack(); });
+      let handled = true;
+      act(() => { handled = result.current.goBack(); });
+
+      expect(handled).toBe(false);
+    });
+
+    it('tapping a day while already in day view adds nothing to go back to', () => {
+      const { result } = renderHook(() => useCalendarNavigation());
+      act(() => { result.current.switchMode('day'); });
+      act(() => { result.current.goToDay(day); });
+      act(() => { result.current.goBack(); });
+
+      let handled = true;
+      act(() => { handled = result.current.goBack(); });
+      expect(handled).toBe(false);
+    });
+
+    it('only remembers a limited number of views', () => {
+      const { result } = renderHook(() => useCalendarNavigation());
+      const modes = ['month', 'week', 'day', '3days'] as const;
+      for (let i = 0; i < 40; i++) act(() => { result.current.switchMode(modes[i % modes.length]); });
+
+      let steps = 0;
+      for (;;) {
+        let handled = false;
+        act(() => { handled = result.current.goBack(); });
+        if (!handled) break;
+        steps++;
+      }
+      expect(steps).toBeLessThanOrEqual(10);
+    });
+  });
 });
