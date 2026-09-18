@@ -1,5 +1,6 @@
 import React from 'react';
-import { render as rtlRender, act, fireEvent } from '@testing-library/react-native';
+import { render as rtlRender, act, fireEvent, within } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { ThemeWrapper } from '../helpers/theme';
 import dayjs from 'dayjs';
 
@@ -386,5 +387,53 @@ describe('maxLanesFor', () => {
 
   it('is zero when the row is too short for even the day number', () => {
     expect(maxLanesFor(30)).toBe(0);
+  });
+});
+
+describe('MonthDayView lane alignment', () => {
+  const trip: CalendarEvent = {
+    uid: 'trip', href: '/trip.ics', calendarId: 'c1', accountId: 'a1', summary: 'Trip',
+    dtstart: new Date(2026, 5, 16), dtend: new Date(2026, 5, 18),
+    allDay: true, color: '#e74c3c', attendees: [], isRecurring: false,
+  };
+
+  function laneRows() {
+    const { getAllByTestId } = render(
+      <MonthDayView
+        date={june10}
+        events={[event, trip]}
+        weekStartsOn={0}
+        jump={{ nonce: 0, target: june10 }}
+        onSelectDate={jest.fn()}
+        onMonthChange={jest.fn()}
+        onPressEvent={jest.fn()}
+        onPressCell={jest.fn()}
+      />
+    );
+    return getAllByTestId('lane-row').map((row) => within(row).getAllByTestId('lane-cell'));
+  }
+
+  it('adds up to exactly seven columns in every lane row, so bars line up with the day tiles', () => {
+    for (const cells of laneRows()) {
+      const total = cells.reduce((sum, c) => sum + (StyleSheet.flatten(c.props.style).flex as number), 0);
+      expect(total).toBe(7);
+    }
+  });
+
+  it('puts no margin on any lane column, since a margin takes width from the shared columns', () => {
+    for (const cells of laneRows()) {
+      for (const c of cells) {
+        const style = StyleSheet.flatten(c.props.style);
+        expect(style.margin ?? 0).toBe(0);
+        expect(style.marginHorizontal ?? 0).toBe(0);
+        expect(style.marginLeft ?? 0).toBe(0);
+        expect(style.marginRight ?? 0).toBe(0);
+      }
+    }
+  });
+
+  it('gives a multi-day bar as many columns as days it covers within the week', () => {
+    const spans = laneRows().flat().map((c) => StyleSheet.flatten(c.props.style).flex as number);
+    expect(spans).toContain(3);
   });
 });

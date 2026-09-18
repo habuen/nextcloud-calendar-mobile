@@ -309,16 +309,17 @@ const MonthGrid = memo(function MonthGrid({
 
             <View style={styles.lanesWrap}>
               {laneGrid.map((row, li) => (
-                <View key={li} style={styles.laneRow}>
+                <View key={li} testID="lane-row" style={styles.laneRow}>
                   {row.map((cell, ci) => {
                     if (cell === 'cont') return null;
                     const d = week[ci];
                     if (cell === null) {
                       return d === null
-                        ? <View key={ci} style={styles.spacerCell} />
+                        ? <View key={ci} testID="lane-cell" style={styles.spacerCell} />
                         : (
                           <TouchableOpacity
                             key={ci}
+                            testID="lane-cell"
                             style={styles.spacerCell}
                             onPress={() => onDayPress(d)}
                             onLongPress={() => onPressCell(d.toDate())}
@@ -327,17 +328,22 @@ const MonthGrid = memo(function MonthGrid({
                     }
                     const span = cell.endCol - cell.startCol + 1;
                     const segStart = week[cell.startCol]!;
+                    // The flex item carries no margin: margins on a flex item come out
+                    // of the row's shared width, which made every column narrower than
+                    // its day tile and slid bars out of line, more so with each bar in
+                    // the row. The inset lives on the bar inside this wrapper instead.
                     return (
-                      <TouchableOpacity
-                        key={ci}
-                        style={[styles.eventBar, { flex: span, backgroundColor: cell.event.color }]}
-                        onPress={() => onPressEvent(cell.event)}
-                        onLongPress={() => onPressCell(segStart.toDate())}
-                      >
-                        <Text numberOfLines={1} style={[styles.eventBarText, { color: textColorFor(cell.event.color) }]}>
-                          {cell.event.summary}
-                        </Text>
-                      </TouchableOpacity>
+                      <View key={ci} testID="lane-cell" style={{ flex: span }}>
+                        <TouchableOpacity
+                          style={[styles.eventBar, { backgroundColor: cell.event.color }]}
+                          onPress={() => onPressEvent(cell.event)}
+                          onLongPress={() => onPressCell(segStart.toDate())}
+                        >
+                          <Text numberOfLines={1} style={[styles.eventBarText, { color: textColorFor(cell.event.color) }]}>
+                            {cell.event.summary}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     );
                   })}
                 </View>
