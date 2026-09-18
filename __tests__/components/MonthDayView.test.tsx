@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 const render = (ui: React.ReactElement, opts?: Parameters<typeof rtlRender>[1]) =>
   rtlRender(ui, { wrapper: ThemeWrapper, ...opts });
 import 'dayjs/locale/fr';
-import { MonthDayView, buildMonthGrid, eventDayKeys, buildWeekSegments, assignLanes } from '@/features/calendar/components/MonthDayView';
+import { MonthDayView, buildMonthGrid, eventDayKeys, buildWeekSegments, assignLanes, maxLanesFor } from '@/features/calendar/components/MonthDayView';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { CalendarEvent } from '../../src/types';
 
@@ -359,5 +359,32 @@ describe('MonthDayView settings.monthEventDisplay', () => {
     const { queryByText, getAllByTestId } = render(view(june10));
     expect(queryByText('Birthday Party')).toBeNull();
     expect(getAllByTestId('month-event-dot').length).toBeGreaterThan(0);
+  });
+});
+
+describe('maxLanesFor', () => {
+  // Footprint of the number row above the lanes, each lane (bar + 1px gap),
+  // and the tile's bottom inset. Mirrors the constants in MonthDayView; the
+  // point is that N lanes must always end inside the tile, at any row height.
+  const NUMBER_ROW = 34;
+  const LANE_FOOTPRINT = 16;
+  const TILE_BOTTOM_INSET = 2;
+
+  it('never budgets more lanes than fit inside the day tile, at any row height', () => {
+    for (let rowHeight = 40; rowHeight <= 200; rowHeight++) {
+      const n = maxLanesFor(rowHeight);
+      expect(NUMBER_ROW + n * LANE_FOOTPRINT).toBeLessThanOrEqual(rowHeight - TILE_BOTTOM_INSET);
+    }
+  });
+
+  it('does not leave room for another lane unused', () => {
+    for (let rowHeight = 40; rowHeight <= 200; rowHeight++) {
+      const n = maxLanesFor(rowHeight);
+      expect(NUMBER_ROW + (n + 1) * LANE_FOOTPRINT).toBeGreaterThan(rowHeight - TILE_BOTTOM_INSET);
+    }
+  });
+
+  it('is zero when the row is too short for even the day number', () => {
+    expect(maxLanesFor(30)).toBe(0);
   });
 });

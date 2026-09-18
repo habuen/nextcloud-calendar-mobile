@@ -153,9 +153,25 @@ function textColorFor(bgHex: string): string {
 const DOW_ROW_HEIGHT = 26;
 const DAY_NUMBER_ROW_HEIGHT = 34;
 const LANE_HEIGHT = 15;
+// Gap above each lane row. A lane's real footprint is LANE_HEIGHT + LANE_GAP;
+// budgeting with LANE_HEIGHT alone under-counted by 1px per lane, so bars ran
+// past the bottom of the day tile in shorter rows.
+const LANE_GAP = 1;
+const LANE_STRIDE = LANE_HEIGHT + LANE_GAP;
+// Inset of each day's rounded tile from its cell. The bottom inset comes off
+// the lane budget, and event bars are inset past it so they sit inside the
+// tile instead of poking out 1px on each side.
+const TILE_MARGIN = 2;
+const BAR_INSET = TILE_MARGIN + 1;
 // Rough guess at the chrome above the grid (top bar, safe area, offline
 // banner) for a synchronous first-frame estimate — see its one use below.
 const ESTIMATED_CHROME_HEIGHT = 130;
+
+// How many lane rows (event bars, or the "+N" row) fit under the day number
+// inside a week row of `rowHeight`, without running past the day tile's bottom.
+export function maxLanesFor(rowHeight: number): number {
+  return Math.max(0, Math.floor((rowHeight - DAY_NUMBER_ROW_HEIGHT - TILE_MARGIN) / LANE_STRIDE));
+}
 
 interface MonthGridProps {
   weeks: (dayjs.Dayjs | null)[][];
@@ -193,7 +209,7 @@ const MonthGrid = memo(function MonthGrid({
   // see its comment. Either way it's a plain number by the time it gets
   // here, so a page's own lane count is synchronous — see the comment on
   // the constants above for why that still matters.
-  const rawMaxLanes = Math.max(0, Math.floor((pagerHeight / weeks.length - DAY_NUMBER_ROW_HEIGHT) / LANE_HEIGHT));
+  const rawMaxLanes = maxLanesFor(pagerHeight / weeks.length);
 
   const weekLanes = useMemo(
     () => weeks.map((week) => assignLanes(buildWeekSegments(week, weekCandidates(week, eventsByDay)))),
@@ -613,7 +629,7 @@ const styles = StyleSheet.create({
   weekRow: { flex: 1 },
   tileRow: { flexDirection: 'row', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   tileSlot: { flex: 1 },
-  tile: { margin: 2, borderRadius: 10 },
+  tile: { margin: TILE_MARGIN, borderRadius: 10 },
   numberRow: { flexDirection: 'row' },
   numberCell: { flex: 1, alignItems: 'center', paddingTop: 2 },
   dayCircle: { width: 32, height: 32, borderRadius: 16, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
@@ -624,11 +640,11 @@ const styles = StyleSheet.create({
   dotsRow: { flexDirection: 'row', gap: 2, marginTop: 2 },
   dot: { width: 5, height: 5, borderRadius: 3 },
   lanesWrap: { flex: 1 },
-  laneRow: { flexDirection: 'row', height: LANE_HEIGHT, marginTop: 1 },
+  laneRow: { flexDirection: 'row', height: LANE_HEIGHT, marginTop: LANE_GAP },
   spacerCell: { flex: 1 },
-  eventBar: { borderRadius: 3, marginHorizontal: 1, paddingHorizontal: 3, justifyContent: 'center', height: LANE_HEIGHT - 2 },
+  eventBar: { borderRadius: 3, marginHorizontal: BAR_INSET, paddingHorizontal: 3, justifyContent: 'center', height: LANE_HEIGHT - 2 },
   eventBarText: { fontSize: 9, fontWeight: '600' },
-  overflowRow: { flexDirection: 'row', height: LANE_HEIGHT, marginTop: 1 },
+  overflowRow: { flexDirection: 'row', height: LANE_HEIGHT, marginTop: LANE_GAP },
   overflowCell: { flex: 1, alignItems: 'center' },
   overflowText: { fontSize: 9, fontWeight: '600' },
 });
