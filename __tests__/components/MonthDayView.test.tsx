@@ -30,6 +30,9 @@ jest.mock('react-native-infinite-pager', () => {
   };
 });
 
+// These tests cover the view-based renderer; the canvas one has its own file.
+beforeAll(() => { useSettingsStore.setState({ monthRenderer: 'views' }); });
+
 const june10 = new Date(2026, 5, 10);
 const june15 = new Date(2026, 5, 15);
 

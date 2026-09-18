@@ -200,6 +200,10 @@
     "monthEventDisplayDots": "Punkte",
     "showWeekNumbers": "Kalenderwochen anzeigen",
     "showWeekNumbersHint": "Monatsansicht: Jede Woche in einer Spalte links nummerieren.",
+    "monthRenderer": "Monatsansicht zeichnen",
+    "monthRendererHint": "Canvas zeichnet den Monat auf einer Fläche und soll flüssiger laufen. Wechsle zu Standard, falls etwas falsch aussieht.",
+    "monthRendererCanvas": "Canvas",
+    "monthRendererViews": "Standard",
     "calendarZoom": "Kalender-Zoom",
     "reset": "Zurücksetzen",
     "zoom": {

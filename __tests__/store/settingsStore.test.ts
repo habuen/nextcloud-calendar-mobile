@@ -56,4 +56,12 @@ describe('settingsStore', () => {
     useSettingsStore.getState().setShowWeekNumbers(false);
     expect(useSettingsStore.getState().showWeekNumbers).toBe(false);
   });
+
+  it('defaults the month renderer to canvas and can switch to the view-based one and back', () => {
+    expect(useSettingsStore.getInitialState().monthRenderer).toBe('canvas');
+    useSettingsStore.getState().setMonthRenderer('views');
+    expect(useSettingsStore.getState().monthRenderer).toBe('views');
+    useSettingsStore.getState().setMonthRenderer('canvas');
+    expect(useSettingsStore.getState().monthRenderer).toBe('canvas');
+  });
 });

@@ -18,6 +18,11 @@ const WEEK_START_OPTIONS = [
   { labelKey: 'settings.monday', value: 1 },
 ] as const;
 
+const MONTH_RENDERER_OPTIONS = [
+  { labelKey: 'settings.monthRendererCanvas', value: 'canvas' },
+  { labelKey: 'settings.monthRendererViews', value: 'views' },
+] as const;
+
 const MONTH_EVENT_DISPLAY_OPTIONS = [
   { labelKey: 'settings.monthEventDisplayBars', value: 'bars' },
   { labelKey: 'settings.monthEventDisplayDots', value: 'dots' },
@@ -32,6 +37,8 @@ export default function CalendarSettingsScreen() {
   const monthEventDisplay = useSettingsStore((s) => s.monthEventDisplay);
   const setMonthEventDisplay = useSettingsStore((s) => s.setMonthEventDisplay);
   const showWeekNumbers = useSettingsStore((s) => s.showWeekNumbers);
+  const monthRenderer = useSettingsStore((s) => s.monthRenderer);
+  const setMonthRenderer = useSettingsStore((s) => s.setMonthRenderer);
   const setShowWeekNumbers = useSettingsStore((s) => s.setShowWeekNumbers);
 
   const [pendingWeek, setPendingWeek] = useState(weekStartsOn);
@@ -70,6 +77,23 @@ export default function CalendarSettingsScreen() {
               fullWidth
               active={monthEventDisplay === opt.value}
               onPress={() => setMonthEventDisplay(opt.value)}
+            >
+              {t(opt.labelKey)}
+            </Chip>
+          ))}
+        </Stack>
+      </Stack>
+
+      <Stack card gap={12} padding={16} hAlign="stretch" style={cardOuter}>
+        <Typography variant="body1">{t('settings.monthRenderer')}</Typography>
+        <Typography variant="caption" color="secondary">{t('settings.monthRendererHint')}</Typography>
+        <Stack direction="horizontal" gap={8}>
+          {MONTH_RENDERER_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value}
+              fullWidth
+              active={monthRenderer === opt.value}
+              onPress={() => setMonthRenderer(opt.value)}
             >
               {t(opt.labelKey)}
             </Chip>

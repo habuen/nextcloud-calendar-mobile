@@ -200,6 +200,10 @@
     "monthEventDisplayDots": "Points",
     "showWeekNumbers": "Afficher les numéros de semaine",
     "showWeekNumbersHint": "Vue mensuelle : numérote chaque semaine dans une colonne à gauche.",
+    "monthRenderer": "Dessin de la vue mensuelle",
+    "monthRendererHint": "Canvas dessine le mois sur une seule surface et devrait être plus fluide. Passez à Standard si quelque chose semble incorrect.",
+    "monthRendererCanvas": "Canvas",
+    "monthRendererViews": "Standard",
     "calendarZoom": "Zoom du calendrier",
     "reset": "Réinitialiser",
     "zoom": {

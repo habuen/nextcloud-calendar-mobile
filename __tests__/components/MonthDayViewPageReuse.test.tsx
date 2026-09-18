@@ -2,6 +2,7 @@ import React from 'react';
 import { render as rtlRender } from '@testing-library/react-native';
 import { ThemeWrapper } from '../helpers/theme';
 import { MonthDayView } from '@/features/calendar/components/MonthDayView';
+import { useSettingsStore } from '@/stores/settingsStore';
 import type { CalendarEvent } from '../../src/types';
 
 jest.mock('@react-native-async-storage/async-storage', () =>
@@ -22,6 +23,8 @@ jest.mock('react-native-infinite-pager', () => {
     }),
   };
 });
+
+beforeAll(() => { useSettingsStore.setState({ monthRenderer: 'views' }); });
 
 const event: CalendarEvent = {
   uid: 'e1', href: '/e1.ics', calendarId: 'c1', accountId: 'a1', summary: 'Party',

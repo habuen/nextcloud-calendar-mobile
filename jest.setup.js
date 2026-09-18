@@ -91,3 +91,34 @@ jest.mock('react-native-reanimated', () => {
     LinearTransition: {},
   };
 });
+
+// Skia is native; jest has no canvas. Components that use it render a plain
+// View, and the drawing code is tested against a recording fake in its own
+// test file (which overrides this).
+jest.mock('@shopify/react-native-skia', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const noop = () => undefined;
+  const paint = () => ({ setAntiAlias: noop, setColor: noop, setStyle: noop, setStrokeWidth: noop });
+  return {
+    Canvas: (props) => React.createElement(View, { testID: 'skia-canvas', style: props.style }, props.children),
+    Picture: () => null,
+    createPicture: () => ({ __picture: true }),
+    Skia: {
+      Paint: paint,
+      Color: (c) => c,
+      XYWHRect: (x, y, w, h) => ({ x, y, w, h }),
+      RRectXY: (rect, rx, ry) => ({ rect, rx, ry }),
+      ParagraphBuilder: {
+        Make: () => ({
+          pushStyle() { return this; },
+          addText() { return this; },
+          build: () => ({ layout: noop, paint: noop, getHeight: () => 10 }),
+        }),
+      },
+    },
+    PaintStyle: { Fill: 0, Stroke: 1 },
+    TextAlign: { Left: 0, Right: 1, Center: 2 },
+    FontWeight: { Normal: 400, SemiBold: 600, Bold: 700 },
+  };
+});

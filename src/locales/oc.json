@@ -195,6 +195,10 @@
     "monthEventDisplayDots": "Punts",
     "showWeekNumbers": "Afichar los numeròs de setmana",
     "showWeekNumbersHint": "Vista mesadièra : numeròta cada setmana dins una colomna a esquèrra.",
+    "monthRenderer": "Dessenh de la vista mesadièra",
+    "monthRendererHint": "Canvas dessenha lo mes sus una sola superfícia e deuriá èsser mai fluid. Passatz a Estandard se quicòm sembla pas corrècte.",
+    "monthRendererCanvas": "Canvas",
+    "monthRendererViews": "Estandard",
     "calendarZoom": "Zoom del calendari",
     "reset": "Reïnicializar",
     "zoom": {
