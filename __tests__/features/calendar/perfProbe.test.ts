@@ -1,9 +1,9 @@
-import { createPerfProbe } from '@/features/calendar/perf/perfProbe';
+import { averageHz, createPerfProbe } from '@/features/calendar/perf/perfProbe';
 
 describe('perfProbe', () => {
   it('starts empty', () => {
     expect(createPerfProbe().snapshot()).toEqual({
-      jsStallMax: 0, jsStalls: 0, uiFrameMax: 0, uiSlowFrames: 0, uiFrames: 0, builds: 0, buildMax: 0, buildTotal: 0,
+      jsStallMax: 0, jsStalls: 0, uiFrameMax: 0, uiSlowFrames: 0, uiOverTight: 0, uiFrames: 0, uiGapTotal: 0, builds: 0, buildMax: 0, buildTotal: 0,
     });
   });
 
@@ -22,8 +22,8 @@ describe('perfProbe', () => {
 
   it('takes the UI-thread figures as given', () => {
     const p = createPerfProbe();
-    p.recordUiFrames(48, 5, 300);
-    expect(p.snapshot()).toMatchObject({ uiFrameMax: 48, uiSlowFrames: 5, uiFrames: 300 });
+    p.recordUiFrames({ max: 48, slow: 5, overTight: 120, frames: 300, gapTotal: 3000 });
+    expect(p.snapshot()).toMatchObject({ uiFrameMax: 48, uiSlowFrames: 5, uiOverTight: 120, uiFrames: 300, uiGapTotal: 3000 });
   });
 
   it('clears everything on reset and hands out copies', () => {
@@ -33,5 +33,16 @@ describe('perfProbe', () => {
     p.reset();
     expect(p.snapshot().builds).toBe(0);
     expect(before.builds).toBe(1);
+  });
+});
+
+describe('averageHz', () => {
+  it('turns the average gap into a frame rate', () => {
+    expect(averageHz({ uiFrames: 600, uiGapTotal: 10000 })).toBeCloseTo(60, 5); // 16.67 ms
+    expect(averageHz({ uiFrames: 1200, uiGapTotal: 10000 })).toBeCloseTo(120, 5); // 8.33 ms
+  });
+
+  it('is 0 before any frame is recorded', () => {
+    expect(averageHz({ uiFrames: 0, uiGapTotal: 0 })).toBe(0);
   });
 });
