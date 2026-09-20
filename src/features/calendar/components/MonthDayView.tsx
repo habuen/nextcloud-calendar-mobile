@@ -320,6 +320,10 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
             renderPage={renderPage}
             onPageChange={handlePageChange}
             pageBuffer={1}
+            // A month page has nothing that scrolls vertically, so keep following
+            // the finger however it drifts up or down; by default a slow drag with
+            // a little vertical wobble froze until it was let go.
+            followCrossAxis
           />
         </View>
       </View>

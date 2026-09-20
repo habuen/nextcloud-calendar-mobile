@@ -317,6 +317,13 @@ describe('MonthDayView paging', () => {
     expect(dayjs(onMonthChange.mock.calls[1][0]).format('YYYY-MM-DD')).toBe('2026-04-01');
   });
 
+  it('keeps following the finger when a slow drag drifts up or down, since a month page never scrolls', () => {
+    mockCapturedPagerProps = [];
+    render(view(june10));
+    const pager = mockCapturedPagerProps.find((p) => typeof p.onPageChange === 'function');
+    expect(pager.followCrossAxis).toBe(true);
+  });
+
   it('labels the week-number column in the weekday header once week numbers are on', () => {
     expect(render(view(june10)).queryByText('W')).toBeNull();
     act(() => { useSettingsStore.getState().setShowWeekNumbers(true); });
