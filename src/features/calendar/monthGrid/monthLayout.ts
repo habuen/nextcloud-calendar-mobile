@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek';
 import type { CalendarEvent } from '@/types';
+import { dayNumberOfDate, dayNumberOfDayjs, keyOfDayNumber, lastDayNumberOf } from './dayMath';
 
 dayjs.extend(isoWeek);
 
@@ -37,16 +38,11 @@ export function lastDayOf(e: CalendarEvent): dayjs.Dayjs {
 }
 
 export function eventDayKeys(e: CalendarEvent): string[] {
-  const start = dayjs(e.dtstart);
-  const startKey = start.format('YYYY-MM-DD');
-  const endDay = lastDayOf(e);
+  const startDay = dayNumberOfDate(e.dtstart);
+  const endDay = lastDayNumberOf(e);
   const keys: string[] = [];
-  let cur = start.startOf('day');
-  while (!cur.isAfter(endDay, 'day') && keys.length <= 366) {
-    keys.push(cur.format('YYYY-MM-DD'));
-    cur = cur.add(1, 'day');
-  }
-  return keys.length ? keys : [startKey];
+  for (let n = startDay; n <= endDay && keys.length <= 366; n++) keys.push(keyOfDayNumber(n));
+  return keys.length ? keys : [keyOfDayNumber(startDay)];
 }
 
 export function eventCoversDay(e: CalendarEvent, dayKey: string): boolean {
@@ -65,16 +61,24 @@ export interface WeekSegment {
 // the displayed month are null and never included, so a clipped range is always
 // contiguous). Single-day events get startCol === endCol.
 export function buildWeekSegments(week: (dayjs.Dayjs | null)[], events: CalendarEvent[]): WeekSegment[] {
+  return segmentsForWeek(weekDayNumbers(week), events);
+}
+
+// Day number of each column, NaN for a blank one (which no comparison matches).
+export function weekDayNumbers(week: (dayjs.Dayjs | null)[]): number[] {
+  return week.map((d) => (d ? dayNumberOfDayjs(d) : NaN));
+}
+
+function segmentsForWeek(dayNumbers: number[], events: CalendarEvent[]): WeekSegment[] {
   const segments: WeekSegment[] = [];
   for (const e of events) {
-    const startDay = dayjs(e.dtstart).startOf('day');
-    const endDay = lastDayOf(e);
+    const startDay = dayNumberOfDate(e.dtstart);
+    const endDay = lastDayNumberOf(e);
     let startCol = -1;
     let endCol = -1;
     for (let i = 0; i < 7; i++) {
-      const d = week[i];
-      if (!d) continue;
-      if (!d.isBefore(startDay, 'day') && !d.isAfter(endDay, 'day')) {
+      const n = dayNumbers[i];
+      if (n >= startDay && n <= endDay) {
         if (startCol === -1) startCol = i;
         endCol = i;
       }
@@ -171,10 +175,14 @@ export function maxLanesFor(rowHeight: number): number {
 // each week to just its own candidates keeps buildWeekSegments from re-scanning
 // the whole 3-month event set 6 times per page.
 export function weekCandidates(week: (dayjs.Dayjs | null)[], eventsByDay: Map<string, CalendarEvent[]>): CalendarEvent[] {
+  return candidatesForWeek(weekDayNumbers(week), eventsByDay);
+}
+
+function candidatesForWeek(dayNumbers: number[], eventsByDay: Map<string, CalendarEvent[]>): CalendarEvent[] {
   const seen = new Map<string, CalendarEvent>();
-  for (const d of week) {
-    if (!d) continue;
-    const dayList = eventsByDay.get(d.format('YYYY-MM-DD'));
+  for (const n of dayNumbers) {
+    if (n !== n) continue; // blank column
+    const dayList = eventsByDay.get(keyOfDayNumber(n));
     if (!dayList) continue;
     for (const e of dayList) seen.set(e.uid, e);
   }
@@ -265,6 +273,7 @@ export function layoutMonthPage(opts: {
   const rowHeight = height / weeks.length;
   const colW = width / COLS;
   const maxLanes = maxLanesFor(rowHeight);
+  const todayNumber = dayNumberOfDayjs(today);
 
   const tiles: Rect[] = [];
   const numbers: PageNumber[] = [];
@@ -275,6 +284,7 @@ export function layoutMonthPage(opts: {
 
   weeks.forEach((week, wi) => {
     const y0 = wi * rowHeight;
+    const dayNumbers = weekDayNumbers(week);
 
     week.forEach((d, c) => {
       if (!d) return;
@@ -289,11 +299,11 @@ export function layoutMonthPage(opts: {
         cx,
         cy: y0 + (mode === 'dots' ? DOTS_NUMBER_CY : NUMBER_CY),
         text: String(d.date()),
-        today: d.isSame(today, 'day'),
+        today: dayNumbers[c] === todayNumber,
       });
 
       if (mode === 'dots') {
-        const colors = Array.from(new Set((eventsByDay.get(d.format('YYYY-MM-DD')) ?? []).map((e) => e.color)))
+        const colors = Array.from(new Set((eventsByDay.get(keyOfDayNumber(dayNumbers[c])) ?? []).map((e) => e.color)))
           .slice(0, MAX_DOTS);
         const total = colors.length * DOT_RADIUS * 2 + (colors.length - 1) * DOT_GAP;
         colors.forEach((color, i) => {
@@ -308,7 +318,7 @@ export function layoutMonthPage(opts: {
 
     if (mode === 'dots') { laneGrids.push([]); return; }
 
-    const laned = assignLanes(buildWeekSegments(week, weekCandidates(week, eventsByDay)));
+    const laned = assignLanes(segmentsForWeek(dayNumbers, candidatesForWeek(dayNumbers, eventsByDay)));
     const laneCount = laned.reduce((max, s) => Math.max(max, s.lane + 1), 0);
     const hasOverflow = laneCount > maxLanes;
     const visibleLanes = hasOverflow ? Math.max(0, maxLanes - 1) : laneCount;
