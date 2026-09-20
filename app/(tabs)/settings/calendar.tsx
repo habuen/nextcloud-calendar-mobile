@@ -40,6 +40,8 @@ export default function CalendarSettingsScreen() {
   const monthRenderer = useSettingsStore((s) => s.monthRenderer);
   const setMonthRenderer = useSettingsStore((s) => s.setMonthRenderer);
   const setShowWeekNumbers = useSettingsStore((s) => s.setShowWeekNumbers);
+  const perfMeter = useSettingsStore((s) => s.perfMeter);
+  const setPerfMeter = useSettingsStore((s) => s.setPerfMeter);
 
   const [pendingWeek, setPendingWeek] = useState(weekStartsOn);
   useEffect(() => { setPendingWeek(weekStartsOn); }, [weekStartsOn]);
@@ -98,6 +100,18 @@ export default function CalendarSettingsScreen() {
               {t(opt.labelKey)}
             </Chip>
           ))}
+        </Stack>
+      </Stack>
+
+      <Stack card gap={12} padding={16} hAlign="stretch" style={cardOuter}>
+        <Stack direction="horizontal" vAlign="center" gap={12}>
+          <Stack gap={2} style={{ flex: 1 }}>
+            <Typography variant="body1">Performance meter</Typography>
+            <Typography variant="caption" color="secondary">
+              Diagnostic. Shows the slowest moments while you swipe, so lag can be measured. Off after a restart.
+            </Typography>
+          </Stack>
+          <Toggle value={perfMeter} onValueChange={setPerfMeter} />
         </Stack>
       </Stack>
 

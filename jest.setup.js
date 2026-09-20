@@ -86,6 +86,7 @@ jest.mock('react-native-reanimated', () => {
     useAnimatedScrollHandler: (h) => h,
     scrollTo: () => {},
     useEvent: () => null,
+    useFrameCallback: () => {},
     withTiming: (v) => v,
     withSpring: (v) => v,
     LinearTransition: {},

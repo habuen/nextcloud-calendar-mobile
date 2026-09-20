@@ -23,6 +23,7 @@ import { useZoom } from '@/features/calendar/hooks/useZoom';
 import { CalendarTopBar } from '@/features/calendar/components/CalendarTopBar';
 import { TimeGridView } from '@/features/calendar/components/TimeGridView';
 import { ViewLayer } from '@/features/calendar/components/ViewLayer';
+import { PerfMeter } from '@/features/calendar/perf/PerfMeter';
 import { CalendarFab } from '@/features/calendar/components/CalendarFab';
 import { CalendarLoadingOverlay } from '@/features/calendar/components/CalendarLoadingOverlay';
 import { toGridEvents, type GridEvent } from '@/features/calendar/utils/toGridEvents';
@@ -42,6 +43,7 @@ export default function CalendarScreen() {
   const calendarApp = useAccountStore((s) => s.capabilities.calendarApp);
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn);
   const language = useSettingsStore((s) => s.language);
+  const perfMeter = useSettingsStore((s) => s.perfMeter);
   const hiddenCalendarIds = useCalendarStore((s) => s.hiddenCalendarIds);
   const toggleCalendarVisibility = useCalendarStore((s) => s.toggleCalendarVisibility);
   const notifDisabledCalendarIds = useCalendarStore((s) => s.notifDisabledCalendarIds);
@@ -210,6 +212,8 @@ export default function CalendarScreen() {
             onMoveEvent={handleMoveEvent}
           />
         </ViewLayer>
+
+        {perfMeter && <PerfMeter />}
       </View>
 
       {showFullOverlay && <CalendarLoadingOverlay label={t('calendar.loadingCalendar')} />}

@@ -64,4 +64,13 @@ describe('settingsStore', () => {
     useSettingsStore.getState().setMonthRenderer('canvas');
     expect(useSettingsStore.getState().monthRenderer).toBe('canvas');
   });
+
+  it('keeps the performance meter off by default, switchable, and out of what is saved', () => {
+    expect(useSettingsStore.getInitialState().perfMeter).toBe(false);
+    useSettingsStore.getState().setPerfMeter(true);
+    expect(useSettingsStore.getState().perfMeter).toBe(true);
+    const saved = useSettingsStore.persist.getOptions().partialize?.(useSettingsStore.getState()) as Record<string, unknown>;
+    expect(saved).not.toHaveProperty('perfMeter');
+    useSettingsStore.getState().setPerfMeter(false);
+  });
 });

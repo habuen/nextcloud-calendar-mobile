@@ -22,6 +22,8 @@ interface SettingsState {
   monthEventDisplay: MonthEventDisplay;
   showWeekNumbers: boolean;
   monthRenderer: MonthRenderer;
+  // Diagnostic overlay; deliberately not persisted, so it is off after a restart.
+  perfMeter: boolean;
   setThemePreference: (pref: ThemePreference) => void;
   setLanguage: (lang: AppLanguage) => void;
   setWeekStartsOn: (v: 0 | 1) => void;
@@ -34,6 +36,7 @@ interface SettingsState {
   setMonthEventDisplay: (v: MonthEventDisplay) => void;
   setShowWeekNumbers: (v: boolean) => void;
   setMonthRenderer: (v: MonthRenderer) => void;
+  setPerfMeter: (v: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -51,6 +54,7 @@ export const useSettingsStore = create<SettingsState>()(
       monthEventDisplay: 'bars',
       showWeekNumbers: false,
       monthRenderer: 'canvas',
+      perfMeter: false,
       setTimedAlert: (v) => set({ timedAlert: v }),
       setAllDayAlert: (v) => set({ allDayAlert: v }),
       setThemePreference: (pref) => set({ themePreference: pref }),
@@ -63,6 +67,7 @@ export const useSettingsStore = create<SettingsState>()(
       setMonthEventDisplay: (v) => set({ monthEventDisplay: v }),
       setShowWeekNumbers: (v) => set({ showWeekNumbers: v }),
       setMonthRenderer: (v) => set({ monthRenderer: v }),
+      setPerfMeter: (v) => set({ perfMeter: v }),
     }),
     {
       name: 'settings-store',

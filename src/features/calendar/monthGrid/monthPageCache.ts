@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { createPicture, type SkPicture } from '@shopify/react-native-skia';
 import type { CalendarEvent } from '@/types';
+import { perfProbe } from '../perf/perfProbe';
 import { keyOfDayNumber } from './dayMath';
 import { drawMonthPage, type MonthPalette } from './monthDraw';
 import { layoutMonthPage, weekDayNumbers, type MonthPageLayout } from './monthLayout';
@@ -85,11 +86,13 @@ export function createMonthPageCache(config: MonthPageConfig): MonthPageCache {
       if (entry && entry.digest === digest) {
         pages.delete(weeks); // re-insert so it counts as the most recently used
       } else {
+        const started = Date.now();
         const layout = layoutMonthPage({ weeks, eventsByDay, ...config });
         const picture = createPicture(
           (canvas) => drawMonthPage(canvas, layout, config.palette),
           { width: layout.width, height: layout.height },
         );
+        perfProbe.recordBuild(Date.now() - started);
         entry = {
           digest,
           page: {
