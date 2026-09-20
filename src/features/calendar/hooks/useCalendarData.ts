@@ -9,7 +9,22 @@ import { useCalendarStore } from '@/stores/calendarStore';
 import { useActiveAccount } from '@/hooks/useAccounts';
 import { useCalendars } from '@/hooks/useCalendars';
 import { normalizeEvents } from '@/utils/normalizeEvent';
+import type { CalendarEvent } from '@/types';
 import { monthRange } from '../utils/range';
+
+// The read-only copy of an event, made once per event object. A fresh copy on
+// every recompute gave the events of read-only calendars new identities each
+// time, which defeated everything downstream that reuses work for an event it
+// has already seen.
+const readOnlyCopies = new WeakMap<CalendarEvent, CalendarEvent>();
+function asReadOnly(e: CalendarEvent): CalendarEvent {
+  let copy = readOnlyCopies.get(e);
+  if (!copy) {
+    copy = { ...e, readOnly: true };
+    readOnlyCopies.set(e, copy);
+  }
+  return copy;
+}
 
 export function useCalendarData(date: Date) {
   const activeAccountId = useAccountStore((s) => s.activeAccountId);
@@ -89,7 +104,7 @@ export function useCalendarData(date: Date) {
     return normalizeEvents(
       dbEvents.filter((e) => !hiddenCalendarIds.includes(e.calendarId)),
     ).map((e) =>
-      nonEditableCalendarIds.has(e.calendarId) ? { ...e, readOnly: true } : e,
+      nonEditableCalendarIds.has(e.calendarId) ? asReadOnly(e) : e,
     );
   }, [dbEvents, hiddenCalendarIds, calendars]);
 
