@@ -64,7 +64,7 @@ const MAX_ANIMATED_JUMP_MONTHS = 2;
 // the background, one per tick, so the page that mounts mid-swipe finds its
 // picture already recorded. Nearest first; the wait lets the swipe's own commit
 // go through before any of it starts.
-const WARM_OFFSETS = [1, -1, 2, -2, 3, -3];
+const WARM_OFFSETS = [1, -1, 2, -2];
 const WARM_START_DELAY_MS = 120;
 const WARM_STEP_DELAY_MS = 40;
 

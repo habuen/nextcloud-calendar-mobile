@@ -9,9 +9,12 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 jest.mock('@/database/sync', () => ({ syncEvents: jest.fn().mockResolvedValue(undefined) }));
 
 let mockDbEvents: CalendarEvent[] = [];
+const mockRangeCalls: { start: Date; end: Date }[] = [];
 let mockCalendars: CalendarMeta[] = [];
 let mockHidden: string[] = [];
-jest.mock('@/database/useEvents', () => ({ useEventsForRange: () => mockDbEvents }));
+jest.mock('@/database/useEvents', () => ({
+  useEventsForRange: (_account: string, start: Date, end: Date) => { mockRangeCalls.push({ start, end }); return mockDbEvents; },
+}));
 jest.mock('@/stores/accountStore', () => ({
   useAccountStore: (sel: (s: { activeAccountId: string }) => unknown) => sel({ activeAccountId: 'acc-1' }),
 }));
@@ -78,5 +81,13 @@ describe('useCalendarData events', () => {
   it('drops the events of a hidden calendar', () => {
     mockHidden = ['locked'];
     expect(run().result.current.allEvents.map((e) => e.uid)).toEqual(['a', 'c']);
+  });
+
+  it('asks for two months of events either side of the month, not one', () => {
+    mockRangeCalls.length = 0;
+    run();
+    const { start, end } = mockRangeCalls[mockRangeCalls.length - 1];
+    expect(start.getTime()).toBe(new Date(2026, 3, 1).getTime());
+    expect(end.getTime()).toBe(new Date(2026, 7, 31, 23, 59, 59, 999).getTime());
   });
 });

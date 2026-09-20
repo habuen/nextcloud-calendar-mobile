@@ -10,7 +10,7 @@ import { useActiveAccount } from '@/hooks/useAccounts';
 import { useCalendars } from '@/hooks/useCalendars';
 import { normalizeEvents } from '@/utils/normalizeEvent';
 import type { CalendarEvent } from '@/types';
-import { monthRange } from '../utils/range';
+import { eventsWindow } from '../utils/range';
 
 // The read-only copy of an event, made once per event object. A fresh copy on
 // every recompute gave the events of read-only calendars new identities each
@@ -35,7 +35,7 @@ export function useCalendarData(date: Date) {
 
   const year = dayjs(date).year();
   const month = dayjs(date).month();
-  const { start, end } = useMemo(() => monthRange(date), [year, month]);
+  const { start, end } = useMemo(() => eventsWindow(date), [year, month]);
 
   const dbEvents = useEventsForRange(activeAccountId ?? '', start, end);
 
