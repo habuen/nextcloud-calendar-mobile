@@ -3,7 +3,8 @@ import { AccessibilityInfo } from 'react-native';
 import { render as rtlRender, act, fireEvent } from '@testing-library/react-native';
 import dayjs from 'dayjs';
 import { ThemeWrapper } from '../helpers/theme';
-import { MonthDayView, buildMonthGrid, eventDayKeys } from '@/features/calendar/components/MonthDayView';
+import { MonthDayView } from '@/features/calendar/components/MonthDayView';
+import { buildMonthGrid, eventDayKeys } from '@/features/calendar/monthGrid/monthLayout';
 import { layoutMonthPage } from '@/features/calendar/monthGrid/monthLayout';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { CalendarEvent } from '../../src/types';
@@ -76,14 +77,10 @@ const dayOf = (fn: jest.Mock) => dayjs(fn.mock.calls[0][0]).format('YYYY-MM-DD')
 const centre = (b: { x: number; y: number; w: number; h: number }) => [b.x + b.w / 2, b.y + b.h / 2] as const;
 
 beforeEach(() => {
-  useSettingsStore.setState({ monthRenderer: 'canvas', monthEventDisplay: 'bars', showWeekNumbers: false });
+  useSettingsStore.setState({ monthEventDisplay: 'bars', showWeekNumbers: false });
 });
 
-describe('MonthDayView with the canvas renderer', () => {
-  it('is the default renderer', () => {
-    expect(useSettingsStore.getInitialState().monthRenderer).toBe('canvas');
-  });
-
+describe('MonthDayView', () => {
   it('builds one picture surface and one touch surface for the whole page, and no per-day views', () => {
     const { getAllByTestId, queryAllByTestId, queryByText } = mount([party, trip]);
     expect(getAllByTestId('skia-picture')).toHaveLength(1);
@@ -93,16 +90,6 @@ describe('MonthDayView with the canvas renderer', () => {
     expect(getAllByTestId('week-touch')).toHaveLength(1);
     expect(queryAllByTestId('lane-bar')).toHaveLength(0);
     expect(queryByText('Birthday Party')).toBeNull(); // drawn, not a view
-  });
-
-  it('builds the view-based page instead when the setting says so', () => {
-    useSettingsStore.setState({ monthRenderer: 'views' });
-    const { queryAllByTestId } = render(
-      <MonthDayView date={june10} events={[party]} weekStartsOn={0} jump={{ nonce: 0, target: june10 }}
-        onSelectDate={jest.fn()} onMonthChange={jest.fn()} onPressEvent={jest.fn()} onPressCell={jest.fn()} />
-    );
-    expect(queryAllByTestId('skia-picture')).toHaveLength(0);
-    expect(queryAllByTestId('lane-bar').length).toBeGreaterThan(0);
   });
 
   it('opens an event when its bar is tapped, and does not open Day view', () => {
@@ -181,7 +168,7 @@ describe('MonthDayView with the canvas renderer', () => {
   });
 });
 
-describe('canvas month view with a screen reader', () => {
+describe('month view with a screen reader', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('adds no accessibility elements when no screen reader is running', () => {

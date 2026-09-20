@@ -18,11 +18,6 @@ const WEEK_START_OPTIONS = [
   { labelKey: 'settings.monday', value: 1 },
 ] as const;
 
-const MONTH_RENDERER_OPTIONS = [
-  { labelKey: 'settings.monthRendererCanvas', value: 'canvas' },
-  { labelKey: 'settings.monthRendererViews', value: 'views' },
-] as const;
-
 const MONTH_EVENT_DISPLAY_OPTIONS = [
   { labelKey: 'settings.monthEventDisplayBars', value: 'bars' },
   { labelKey: 'settings.monthEventDisplayDots', value: 'dots' },
@@ -37,8 +32,6 @@ export default function CalendarSettingsScreen() {
   const monthEventDisplay = useSettingsStore((s) => s.monthEventDisplay);
   const setMonthEventDisplay = useSettingsStore((s) => s.setMonthEventDisplay);
   const showWeekNumbers = useSettingsStore((s) => s.showWeekNumbers);
-  const monthRenderer = useSettingsStore((s) => s.monthRenderer);
-  const setMonthRenderer = useSettingsStore((s) => s.setMonthRenderer);
   const setShowWeekNumbers = useSettingsStore((s) => s.setShowWeekNumbers);
   const perfMeter = useSettingsStore((s) => s.perfMeter);
   const setPerfMeter = useSettingsStore((s) => s.setPerfMeter);
@@ -87,35 +80,6 @@ export default function CalendarSettingsScreen() {
       </Stack>
 
       <Stack card gap={12} padding={16} hAlign="stretch" style={cardOuter}>
-        <Typography variant="body1">{t('settings.monthRenderer')}</Typography>
-        <Typography variant="caption" color="secondary">{t('settings.monthRendererHint')}</Typography>
-        <Stack direction="horizontal" gap={8}>
-          {MONTH_RENDERER_OPTIONS.map((opt) => (
-            <Chip
-              key={opt.value}
-              fullWidth
-              active={monthRenderer === opt.value}
-              onPress={() => setMonthRenderer(opt.value)}
-            >
-              {t(opt.labelKey)}
-            </Chip>
-          ))}
-        </Stack>
-      </Stack>
-
-      <Stack card gap={12} padding={16} hAlign="stretch" style={cardOuter}>
-        <Stack direction="horizontal" vAlign="center" gap={12}>
-          <Stack gap={2} style={{ flex: 1 }}>
-            <Typography variant="body1">Performance meter</Typography>
-            <Typography variant="caption" color="secondary">
-              Diagnostic. Shows the slowest moments while you swipe, so lag can be measured. Off after a restart.
-            </Typography>
-          </Stack>
-          <Toggle value={perfMeter} onValueChange={setPerfMeter} />
-        </Stack>
-      </Stack>
-
-      <Stack card gap={12} padding={16} hAlign="stretch" style={cardOuter}>
         <Stack direction="horizontal" vAlign="center" gap={12}>
           <Stack gap={2} style={{ flex: 1 }}>
             <Typography variant="body1">{t('settings.showWeekNumbers')}</Typography>
@@ -150,6 +114,18 @@ export default function CalendarSettingsScreen() {
           disabled={hourRowHeight === DEFAULT_ZOOM}
           onPress={() => setHourRowHeight(DEFAULT_ZOOM)}
         />
+      </Stack>
+
+      <Stack card gap={12} padding={16} hAlign="stretch" style={cardOuter}>
+        <Stack direction="horizontal" vAlign="center" gap={12}>
+          <Stack gap={2} style={{ flex: 1 }}>
+            <Typography variant="body1">Performance meter</Typography>
+            <Typography variant="caption" color="secondary">
+              Diagnostic. Shows the slowest moments while you swipe, so lag can be measured. Off after a restart.
+            </Typography>
+          </Stack>
+          <Toggle value={perfMeter} onValueChange={setPerfMeter} />
+        </Stack>
       </Stack>
     </SettingsPage>
   );

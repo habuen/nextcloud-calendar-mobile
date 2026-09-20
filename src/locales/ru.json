@@ -200,10 +200,6 @@
     "monthEventDisplayDots": "Точки",
     "showWeekNumbers": "Показывать номера недель",
     "showWeekNumbersHint": "Вид месяца: нумерует каждую неделю в столбце слева.",
-    "monthRenderer": "Отрисовка вида месяца",
-    "monthRendererHint": "Canvas рисует месяц на одной поверхности и должен работать плавнее. Переключитесь на Стандартный, если что-то выглядит неправильно.",
-    "monthRendererCanvas": "Canvas",
-    "monthRendererViews": "Стандартный",
     "calendarZoom": "Масштаб календаря",
     "reset": "Сбросить",
     "zoom": {

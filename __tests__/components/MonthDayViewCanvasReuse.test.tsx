@@ -10,8 +10,8 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 );
 
 // Renders the three months around the current one and counts how many times
-// the view rebuilds its pager (each render of MonthDayView re-renders it).
-let pagerRenders = 0;
+// the view rebuilds its pager (each render of MonthDayView re-renders it). The
+// count lives on globalThis because the mock factory can't close over locals.
 const mockScreenReader = jest.fn(() => false);
 jest.mock('@/features/calendar/monthGrid/useScreenReaderEnabled', () => ({
   useScreenReaderEnabled: () => mockScreenReader(),
@@ -57,7 +57,7 @@ const renders = () => (globalThis as any).__pagerRenders as number;
 
 beforeEach(() => {
   (globalThis as any).__pagerRenders = 0;
-  useSettingsStore.setState({ monthRenderer: 'canvas', monthEventDisplay: 'bars', showWeekNumbers: false });
+  useSettingsStore.setState({ monthEventDisplay: 'bars', showWeekNumbers: false });
 });
 
 describe('canvas month pages when the events change', () => {

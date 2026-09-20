@@ -5,10 +5,10 @@ import { dayNumberOfDate, dayNumberOfDayjs, keyOfDayNumber, lastDayNumberOf } fr
 
 dayjs.extend(isoWeek);
 
-// Pure month-grid logic shared by both renderers (the view-based MonthGrid and
-// the Skia canvas one) and the tests: which days a month shows, how events are
-// clipped and stacked into lanes, week numbers, and how a touch maps to a day
-// or an event. Nothing here touches React or React Native.
+// Pure month-grid logic, shared by the canvas month view and the tests: which
+// days a month shows, how events are clipped and stacked into lanes, week
+// numbers, and how a touch maps to a day or an event. Nothing here touches React
+// or React Native.
 
 export function buildMonthGrid(year: number, month: number, weekStartsOn: 0 | 1): (dayjs.Dayjs | null)[][] {
   const firstOfMonth = dayjs(new Date(year, month, 1));
@@ -31,24 +31,12 @@ export function buildMonthGrid(year: number, month: number, weekStartsOn: 0 | 1)
   return rows;
 }
 
-export function lastDayOf(e: CalendarEvent): dayjs.Dayjs {
-  const end = dayjs(e.dtend);
-  if (e.allDay) return end.startOf('day');
-  return (end.isSame(end.startOf('day')) ? end.subtract(1, 'millisecond') : end).startOf('day');
-}
-
 export function eventDayKeys(e: CalendarEvent): string[] {
   const startDay = dayNumberOfDate(e.dtstart);
   const endDay = lastDayNumberOf(e);
   const keys: string[] = [];
   for (let n = startDay; n <= endDay && keys.length <= 366; n++) keys.push(keyOfDayNumber(n));
   return keys.length ? keys : [keyOfDayNumber(startDay)];
-}
-
-export function eventCoversDay(e: CalendarEvent, dayKey: string): boolean {
-  const startKey = dayjs(e.dtstart).format('YYYY-MM-DD');
-  const endKey = lastDayOf(e).format('YYYY-MM-DD');
-  return dayKey >= startKey && dayKey <= (endKey < startKey ? startKey : endKey);
 }
 
 export interface WeekSegment {

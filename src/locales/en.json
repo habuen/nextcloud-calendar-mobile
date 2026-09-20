@@ -200,10 +200,6 @@
     "monthEventDisplayDots": "Dots",
     "showWeekNumbers": "Show Week Numbers",
     "showWeekNumbersHint": "Month view: number each week in a column on the left.",
-    "monthRenderer": "Month View Drawing",
-    "monthRendererHint": "Canvas draws the month on one surface and is meant to be smoother. Switch to Standard if something looks wrong.",
-    "monthRendererCanvas": "Canvas",
-    "monthRendererViews": "Standard",
     "calendarZoom": "Calendar Zoom",
     "reset": "Reset",
     "zoom": {

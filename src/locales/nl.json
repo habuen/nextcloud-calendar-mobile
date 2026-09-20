@@ -200,10 +200,6 @@
     "monthEventDisplayDots": "Stippen",
     "showWeekNumbers": "Weeknummers tonen",
     "showWeekNumbersHint": "Maandweergave: nummert elke week in een kolom links.",
-    "monthRenderer": "Maandweergave tekenen",
-    "monthRendererHint": "Canvas tekent de maand op één vlak en hoort vloeiender te zijn. Kies Standaard als er iets fout lijkt.",
-    "monthRendererCanvas": "Canvas",
-    "monthRendererViews": "Standaard",
     "calendarZoom": "Agendazoom",
     "reset": "Resetten",
     "zoom": {

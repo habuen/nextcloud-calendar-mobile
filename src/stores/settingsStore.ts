@@ -7,7 +7,6 @@ import type { TalkOpenMode } from '@/types';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 export type MonthEventDisplay = 'bars' | 'dots';
-export type MonthRenderer = 'canvas' | 'views';
 
 interface SettingsState {
   themePreference: ThemePreference;
@@ -21,7 +20,6 @@ interface SettingsState {
   talkOpenMode: TalkOpenMode;
   monthEventDisplay: MonthEventDisplay;
   showWeekNumbers: boolean;
-  monthRenderer: MonthRenderer;
   // Diagnostic overlay; deliberately not persisted, so it is off after a restart.
   perfMeter: boolean;
   setThemePreference: (pref: ThemePreference) => void;
@@ -35,7 +33,6 @@ interface SettingsState {
   setTalkOpenMode: (v: TalkOpenMode) => void;
   setMonthEventDisplay: (v: MonthEventDisplay) => void;
   setShowWeekNumbers: (v: boolean) => void;
-  setMonthRenderer: (v: MonthRenderer) => void;
   setPerfMeter: (v: boolean) => void;
 }
 
@@ -53,7 +50,6 @@ export const useSettingsStore = create<SettingsState>()(
       talkOpenMode: 'app',
       monthEventDisplay: 'bars',
       showWeekNumbers: false,
-      monthRenderer: 'canvas',
       perfMeter: false,
       setTimedAlert: (v) => set({ timedAlert: v }),
       setAllDayAlert: (v) => set({ allDayAlert: v }),
@@ -66,7 +62,6 @@ export const useSettingsStore = create<SettingsState>()(
       setTalkOpenMode: (v) => set({ talkOpenMode: v }),
       setMonthEventDisplay: (v) => set({ monthEventDisplay: v }),
       setShowWeekNumbers: (v) => set({ showWeekNumbers: v }),
-      setMonthRenderer: (v) => set({ monthRenderer: v }),
       setPerfMeter: (v) => set({ perfMeter: v }),
     }),
     {
@@ -90,7 +85,6 @@ export const useSettingsStore = create<SettingsState>()(
         talkOpenMode: state.talkOpenMode,
         monthEventDisplay: state.monthEventDisplay,
         showWeekNumbers: state.showWeekNumbers,
-        monthRenderer: state.monthRenderer,
       }),
     }
   )

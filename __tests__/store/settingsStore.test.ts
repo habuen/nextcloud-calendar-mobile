@@ -57,14 +57,6 @@ describe('settingsStore', () => {
     expect(useSettingsStore.getState().showWeekNumbers).toBe(false);
   });
 
-  it('defaults the month renderer to canvas and can switch to the view-based one and back', () => {
-    expect(useSettingsStore.getInitialState().monthRenderer).toBe('canvas');
-    useSettingsStore.getState().setMonthRenderer('views');
-    expect(useSettingsStore.getState().monthRenderer).toBe('views');
-    useSettingsStore.getState().setMonthRenderer('canvas');
-    expect(useSettingsStore.getState().monthRenderer).toBe('canvas');
-  });
-
   it('keeps the performance meter off by default, switchable, and out of what is saved', () => {
     expect(useSettingsStore.getInitialState().perfMeter).toBe(false);
     useSettingsStore.getState().setPerfMeter(true);

@@ -1,8 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import {
-  View, Text, Pressable, StyleSheet, Dimensions,
-  type GestureResponderEvent, type LayoutChangeEvent,
-} from 'react-native';
+import { View, Text, StyleSheet, Dimensions, type LayoutChangeEvent } from 'react-native';
 import dayjs from 'dayjs';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
 import { useTranslation } from 'react-i18next';
@@ -16,42 +13,10 @@ import type { CalendarEvent } from '@/types';
 import {
   buildMonthGrid,
   eventDayKeys,
-  eventCoversDay,
-  buildWeekSegments,
-  assignLanes,
-  maxLanesFor,
-  columnAt,
-  laneAt,
-  resolveWeekTouch,
   weekNumberFor,
   WEEK_NUMBER_GUTTER,
-  lastDayOf,
-  textColorFor,
-  weekCandidates,
   DOW_ROW_HEIGHT,
-  DAY_NUMBER_ROW_HEIGHT,
-  LANE_HEIGHT,
-  LANE_GAP,
-  LANE_STRIDE,
   TILE_MARGIN,
-  BAR_INSET,
-  COLS,
-  type WeekSegment,
-  type LanedSegment,
-  type WeekTouch,
-} from '../monthGrid/monthLayout';
-export {
-  buildMonthGrid,
-  eventDayKeys,
-  eventCoversDay,
-  buildWeekSegments,
-  assignLanes,
-  maxLanesFor,
-  columnAt,
-  laneAt,
-  resolveWeekTouch,
-  weekNumberFor,
-  WEEK_NUMBER_GUTTER,
 } from '../monthGrid/monthLayout';
 
 dayjs.extend(localizedFormat);
@@ -87,19 +52,6 @@ function monthDiff(from: Date, to: Date): number {
 // banner) for a synchronous first-frame estimate — see its one use below.
 const ESTIMATED_CHROME_HEIGHT = 130;
 
-interface MonthGridProps {
-  weeks: (dayjs.Dayjs | null)[][];
-  today: dayjs.Dayjs;
-  eventsByDay: Map<string, CalendarEvent[]>;
-  pagerHeight: number;
-  // One entry per week row, or null when week numbers are off.
-  weekNumbers: (number | null)[] | null;
-  colors: ReturnType<typeof useTheme>['colors'];
-  onDayPress: (d: dayjs.Dayjs) => void;
-  onPressCell: (d: Date) => void;
-  onPressEvent: (e: CalendarEvent) => void;
-}
-
 const WeekNumberGutter = memo(function WeekNumberGutter({
   numbers, color,
 }: { numbers: (number | null)[]; color: string }) {
@@ -116,8 +68,8 @@ const WeekNumberGutter = memo(function WeekNumberGutter({
   );
 });
 
-// The canvas renderer's page: the same week-number column as the view-based
-// pages, beside a single canvas that draws the whole week area.
+// One month's page: the week-number column (when on) beside a single canvas
+// that draws the whole week area.
 const MonthPageCanvas = memo(function MonthPageCanvas({
   weekNumbers, gutterColor, ...canvasProps
 }: {
@@ -138,262 +90,11 @@ const MonthPageCanvas = memo(function MonthPageCanvas({
   );
 });
 
-// One month's 6-week grid. Rendered per pager page so a horizontal swipe slides a
-// full month in and out under the finger instead of the old swipe-then-jump.
-const MonthGrid = memo(function MonthGrid({
-  weeks, today, eventsByDay, pagerHeight, weekNumbers, colors, onDayPress, onPressCell, onPressEvent,
-}: MonthGridProps) {
-  // pagerHeight is a synchronous estimate on this page's very first render,
-  // corrected in place once MonthDayViewImpl's own container is measured —
-  // see its comment. Either way it's a plain number by the time it gets
-  // here, so a page's own lane count is synchronous — see the comment on
-  // the constants above for why that still matters.
-  const rawMaxLanes = maxLanesFor(pagerHeight / weeks.length);
-
-  // Only read when a touch lands, so a ref: measuring it must not re-render.
-  const widthRef = useRef(Dimensions.get('window').width - (weekNumbers ? WEEK_NUMBER_GUTTER : 0));
-
-  const weekLanes = useMemo(
-    () => weeks.map((week) => assignLanes(buildWeekSegments(week, weekCandidates(week, eventsByDay)))),
-    [weeks, eventsByDay],
-  );
-
-  return (
-    <View style={styles.monthPage}>
-      {weekNumbers && <WeekNumberGutter numbers={weekNumbers} color={colors.textTertiary} />}
-      <View
-        testID="week-area"
-        style={styles.weekArea}
-        onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
-      >
-      {weeks.map((week, wi) => {
-        const laned = weekLanes[wi];
-        const laneCount = laned.reduce((max, s) => Math.max(max, s.lane + 1), 0);
-        const hasOverflow = laneCount > rawMaxLanes;
-        const visibleLanes = hasOverflow ? Math.max(0, rawMaxLanes - 1) : laneCount;
-
-        const laneGrid: (LanedSegment | null)[][] =
-          Array.from({ length: visibleLanes }, () => Array(COLS).fill(null));
-        for (const seg of laned) {
-          if (seg.lane >= visibleLanes) continue;
-          for (let c = seg.startCol; c <= seg.endCol; c++) laneGrid[seg.lane][c] = seg;
-        }
-
-        const overflowByCol = Array<number>(COLS).fill(0);
-        if (hasOverflow) {
-          for (const seg of laned) {
-            if (seg.lane < visibleLanes) continue;
-            for (let c = seg.startCol; c <= seg.endCol; c++) overflowByCol[c] += 1;
-          }
-        }
-
-        const resolve = (e: GestureResponderEvent) =>
-          resolveWeekTouch(e.nativeEvent.locationX, e.nativeEvent.locationY, widthRef.current, laneGrid);
-
-        return (
-          <View key={wi} style={styles.weekRow}>
-            <Pressable
-              testID="week-touch"
-              style={StyleSheet.absoluteFill}
-              onPress={(e) => {
-                const hit = resolve(e);
-                if (hit.kind === 'event') { onPressEvent(hit.segment.event); return; }
-                const d = week[hit.col];
-                if (d) onDayPress(d);
-              }}
-              onLongPress={(e) => {
-                const hit = resolve(e);
-                const d = hit.kind === 'event' ? week[hit.segment.startCol] : week[hit.col];
-                if (d) onPressCell(d.toDate());
-              }}
-            />
-            {/* Everything visible sits above the touch surface and is inert, so
-                every touch lands on the Pressable and its locationX/Y are
-                relative to the week row rather than to whatever child was hit. */}
-            <View pointerEvents="none" style={styles.weekContent}>
-              {/* One rounded tile per day that also holds the day number, so a day is
-                  two views (tile + number) instead of four (tile, number cell,
-                  circle, text). The number is the circle: fixed size, radius and
-                  background on the Text itself. */}
-              <View style={styles.tileRow}>
-                {week.map((d, di) => {
-                  if (d === null) return <View key={di} style={styles.tileSlot} />;
-                  const dayKey = d.format('YYYY-MM-DD');
-                  const isToday = d.isSame(today, 'day');
-                  return (
-                    <View
-                      key={di}
-                      testID={isToday ? `day-today-${dayKey}` : undefined}
-                      style={[styles.tileSlot, styles.tile, { backgroundColor: colors.surfaceRaised }]}
-                    >
-                      <Text
-                        numberOfLines={1}
-                        allowFontScaling={false}
-                        style={[
-                          styles.dayNumber,
-                          {
-                            borderWidth: isToday ? 1.5 : 0,
-                            borderColor: colors.primary,
-                            color: isToday ? colors.primary : colors.text,
-                            fontWeight: isToday ? '700' : '400',
-                          },
-                        ]}
-                      >
-                        {d.date()}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-
-              <View style={styles.lanesWrap}>
-                {laneGrid.map((row, li) => (
-                  <View key={li} testID="lane-row" style={styles.laneRow}>
-                    {row.map((seg, ci) => {
-                      if (!seg || ci !== seg.startCol) return null;
-                      const span = seg.endCol - seg.startCol + 1;
-                      // Placed by percentage of the row, so a bar lines up with its
-                      // day columns exactly and needs no empty spacer views around
-                      // it. The inset is padding on the slot, not a margin on
-                      // anything that shares the row's width.
-                      return (
-                        <View
-                          key={ci}
-                          testID="lane-bar"
-                          style={[styles.barSlot, { left: `${(seg.startCol / COLS) * 100}%`, width: `${(span / COLS) * 100}%` }]}
-                        >
-                          <Text
-                            numberOfLines={1}
-                            style={[styles.eventBar, { backgroundColor: seg.event.color, color: textColorFor(seg.event.color) }]}
-                          >
-                            {seg.event.summary}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                ))}
-                {hasOverflow && (
-                  <View style={styles.overflowRow}>
-                    {overflowByCol.map((n, ci) => (
-                      n > 0 && week[ci] !== null ? (
-                        <Text
-                          key={ci}
-                          numberOfLines={1}
-                          style={[
-                            styles.overflowText,
-                            { left: `${(ci / COLS) * 100}%`, width: `${100 / COLS}%`, color: colors.textTertiary },
-                          ]}
-                        >
-                          +{n}
-                        </Text>
-                      ) : null
-                    ))}
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-        );
-      })}
-      </View>
-    </View>
-  );
-});
-
-interface MonthGridDotsProps {
-  weeks: (dayjs.Dayjs | null)[][];
-  today: dayjs.Dayjs;
-  eventsByDay: Map<string, CalendarEvent[]>;
-  weekNumbers: (number | null)[] | null;
-  colors: ReturnType<typeof useTheme>['colors'];
-  onDayPress: (d: dayjs.Dayjs) => void;
-  onPressCell: (d: Date) => void;
-}
-
-// The original, simpler month cell: a day number and up to 3 small colored
-// dots (one per distinct event color that day, no titles). Offered as a
-// lighter-weight alternative to MonthGrid's event-bar lanes via
-// settings.monthEventDisplay — no per-page height measurement needed since
-// every cell is the same fixed size regardless of how many events land on it.
-// Same one-touch-surface-per-week approach as MonthGrid.
-const MonthGridDots = memo(function MonthGridDots({
-  weeks, today, eventsByDay, weekNumbers, colors, onDayPress, onPressCell,
-}: MonthGridDotsProps) {
-  const widthRef = useRef(Dimensions.get('window').width - (weekNumbers ? WEEK_NUMBER_GUTTER : 0));
-
-  return (
-    <View style={styles.monthPage}>
-      {weekNumbers && <WeekNumberGutter numbers={weekNumbers} color={colors.textTertiary} />}
-      <View
-        testID="week-area"
-        style={styles.weekArea}
-        onLayout={(e) => { widthRef.current = e.nativeEvent.layout.width; }}
-      >
-      {weeks.map((week, wi) => (
-        <View key={wi} style={styles.weekRow}>
-          <Pressable
-            testID="week-touch"
-            style={StyleSheet.absoluteFill}
-            onPress={(e) => {
-              const d = week[columnAt(e.nativeEvent.locationX, widthRef.current)];
-              if (d) onDayPress(d);
-            }}
-            onLongPress={(e) => {
-              const d = week[columnAt(e.nativeEvent.locationX, widthRef.current)];
-              if (d) onPressCell(d.toDate());
-            }}
-          />
-          <View pointerEvents="none" style={styles.dotsWeekRow}>
-            {week.map((d, di) => {
-              if (d === null) return <View key={di} style={styles.dayCell} />;
-              const key = d.format('YYYY-MM-DD');
-              const isToday = d.isSame(today, 'day');
-              const dots = Array.from(new Set((eventsByDay.get(key) ?? []).map((e) => e.color))).slice(0, 3);
-
-              return (
-                <View
-                  key={di}
-                  testID={isToday ? `day-today-${key}` : undefined}
-                  style={[styles.dayCell, styles.tile, { backgroundColor: colors.surfaceRaised }]}
-                >
-                  <Text
-                    numberOfLines={1}
-                    allowFontScaling={false}
-                    style={[
-                      styles.dayNumber,
-                      {
-                        borderWidth: isToday ? 1.5 : 0,
-                        borderColor: colors.primary,
-                        color: isToday ? colors.primary : colors.text,
-                        fontWeight: isToday ? '700' : '400',
-                      },
-                    ]}
-                  >
-                    {d.date()}
-                  </Text>
-                  <View style={styles.dotsRow}>
-                    {dots.map((color, ci) => (
-                      <View key={ci} testID="month-event-dot" style={[styles.dot, { backgroundColor: color }]} />
-                    ))}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      ))}
-      </View>
-    </View>
-  );
-});
-
 function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMonthChange, onPressEvent, onPressCell }: Props) {
   const theme = useTheme();
   const language = useSettingsStore((s) => s.language);
   const monthEventDisplay = useSettingsStore((s) => s.monthEventDisplay);
   const showWeekNumbers = useSettingsStore((s) => s.showWeekNumbers);
-  const monthRenderer = useSettingsStore((s) => s.monthRenderer);
   const { t } = useTranslation();
   // Read once here, not by every mounted page: each page asking the system
   // (and listening) on mount was a native call per page per swipe.
@@ -558,7 +259,6 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
   const warmAround = useCallback((index: number) => {
     if (warmTimer.current) clearTimeout(warmTimer.current);
     warmTimer.current = null;
-    if (monthRenderer !== 'canvas') return;
     let step = 0;
     const next = () => {
       if (step >= WARM_OFFSETS.length) { warmTimer.current = null; return; }
@@ -567,7 +267,7 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
       warmTimer.current = setTimeout(next, WARM_STEP_DELAY_MS);
     };
     warmTimer.current = setTimeout(next, WARM_START_DELAY_MS);
-  }, [monthRenderer, pageCache, gridFor, eventsByDay]);
+  }, [pageCache, gridFor, eventsByDay]);
 
   warmAroundRef.current = warmAround;
 
@@ -581,46 +281,20 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
   const renderPage = useCallback(({ index }: { index: number }) => {
     const m = dayjs(localAnchor).add(index, 'month');
     const { weeks, weekNumbers } = gridFor(m);
-    if (monthRenderer === 'canvas') {
-      return (
-        <MonthPageCanvas
-          weeks={weeks}
-          page={pageCache.get(weeks, eventsByDay)}
-          screenReader={screenReader}
-          weekNumbers={weekNumbers}
-          gutterColor={textTertiary}
-          onDayPress={handleDayPress}
-          onPressCell={onPressCell}
-          onPressEvent={onPressEvent}
-        />
-      );
-    }
-    return monthEventDisplay === 'dots' ? (
-      <MonthGridDots
+    return (
+      <MonthPageCanvas
         weeks={weeks}
-        today={today}
-        eventsByDay={eventsByDay}
+        page={pageCache.get(weeks, eventsByDay)}
+        screenReader={screenReader}
         weekNumbers={weekNumbers}
-        colors={theme.colors}
-        onDayPress={handleDayPress}
-        onPressCell={onPressCell}
-      />
-    ) : (
-      <MonthGrid
-        weeks={weeks}
-        today={today}
-        eventsByDay={eventsByDay}
-        pagerHeight={pagerHeight}
-        weekNumbers={weekNumbers}
-        colors={theme.colors}
+        gutterColor={textTertiary}
         onDayPress={handleDayPress}
         onPressCell={onPressCell}
         onPressEvent={onPressEvent}
       />
     );
   }, [
-    localAnchor, gridFor, monthRenderer, pageCache, monthEventDisplay, today, eventsByDay, pagerHeight,
-    theme.colors, textTertiary, screenReader, handleDayPress, onPressCell, onPressEvent,
+    localAnchor, gridFor, pageCache, eventsByDay, textTertiary, screenReader, handleDayPress, onPressCell, onPressEvent,
   ]);
 
   return (
@@ -673,51 +347,9 @@ const styles = StyleSheet.create({
   dowLabel: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
   pagerWrap: { flex: 1 },
   monthPage: { flex: 1, flexDirection: 'row' },
-  weekArea: { flex: 1 },
   weekNumberGutter: { width: WEEK_NUMBER_GUTTER },
   weekNumberCell: { flex: 1, alignItems: 'center' },
   // Same box as the day number beside it so the two centre on one line.
   weekNumber: { marginTop: TILE_MARGIN, height: 32, lineHeight: 32, fontSize: 10, fontWeight: '600', textAlign: 'center', includeFontPadding: false },
   weekNumberHeader: { flex: 0, width: WEEK_NUMBER_GUTTER },
-  weekRow: { flex: 1 },
-  weekContent: { flex: 1 },
-  tileRow: { flexDirection: 'row', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  tileSlot: { flex: 1 },
-  tile: { margin: TILE_MARGIN, borderRadius: 10 },
-  // The day number and its highlight circle are one Text: fixed 32px box,
-  // fully rounded, centred glyph.
-  dayNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    overflow: 'hidden',
-    fontSize: 14,
-    lineHeight: 32,
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    includeFontPadding: false,
-  },
-  // MonthGridDots only:
-  dotsWeekRow: { flex: 1, flexDirection: 'row' },
-  dayCell: { flex: 1, alignItems: 'center', paddingTop: 2 },
-  dotsRow: { flexDirection: 'row', gap: 2, marginTop: 2 },
-  dot: { width: 5, height: 5, borderRadius: 3 },
-  // Sits under the day number (which now lives in the tile), so it can't be
-  // in normal flow after it.
-  lanesWrap: { position: 'absolute', top: DAY_NUMBER_ROW_HEIGHT, left: 0, right: 0 },
-  laneRow: { height: LANE_HEIGHT, marginTop: LANE_GAP },
-  barSlot: { position: 'absolute', top: 0, paddingHorizontal: BAR_INSET },
-  eventBar: {
-    borderRadius: 3,
-    overflow: 'hidden',
-    paddingHorizontal: 3,
-    height: LANE_HEIGHT - 2,
-    lineHeight: LANE_HEIGHT - 2,
-    fontSize: 9,
-    fontWeight: '600',
-    includeFontPadding: false,
-    textAlignVertical: 'center',
-  },
-  overflowRow: { height: LANE_HEIGHT, marginTop: LANE_GAP },
-  overflowText: { position: 'absolute', top: 0, textAlign: 'center', fontSize: 9, fontWeight: '600' },
 });

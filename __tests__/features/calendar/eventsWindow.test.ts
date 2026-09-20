@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { eventsWindow, monthRange } from '@/features/calendar/utils/range';
+import { eventsWindow } from '@/features/calendar/utils/range';
 
 const ymd = (d: Date) => dayjs(d).format('YYYY-MM-DD HH:mm:ss.SSS');
 
@@ -24,14 +24,6 @@ describe('eventsWindow', () => {
     const dec = eventsWindow(new Date(2026, 11, 20));
     expect(ymd(dec.start)).toBe('2026-10-01 00:00:00.000');
     expect(ymd(dec.end)).toBe('2027-02-28 23:59:59.999');
-  });
-
-  it('is wider than the one-month-either-side window by exactly a month each way', () => {
-    const date = new Date(2026, 5, 17);
-    const narrow = monthRange(date);
-    const wide = eventsWindow(date);
-    expect(dayjs(narrow.start).diff(wide.start, 'month')).toBe(1);
-    expect(dayjs(wide.end).diff(narrow.end, 'month')).toBe(1);
   });
 
   it('always contains the months the month view keeps mounted and warms', () => {
