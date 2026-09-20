@@ -85,19 +85,20 @@ describe('useCalendarData sync', () => {
     expect(mockedSync).not.toHaveBeenCalled();
   });
 
-  it('clears the loading indicator when its sync ends, even after the effect that started it was replaced', async () => {
-    const loading = (r: { current: ReturnType<typeof useCalendarData> }) =>
-      r.current.showFullOverlay || r.current.showSmallLoader;
+  const loading = (r: { current: ReturnType<typeof useCalendarData> }) =>
+    r.current.showFullOverlay || r.current.showSmallLoader;
+  const farAway = new Date(2027, 2, 15);
 
+  it('clears the loading indicator when its sync ends, even after the effect that started it was replaced', async () => {
     const { result, rerender } = renderHook(({ d }: { d: Date }) => useCalendarData(d), { initialProps: { d: june } });
     await waitFor(() => expect(mockedSync).toHaveBeenCalledTimes(3));
     await waitFor(() => expect(loading(result)).toBe(false));
     mockedSync.mockClear();
 
-    // Moving on to July needs August, whose sync we hold open...
+    // Jumping to a month never synced needs its sync, which we hold open...
     let finish!: () => void;
     mockedSync.mockImplementationOnce(() => new Promise<void>((res) => { finish = res; }));
-    rerender({ d: july });
+    rerender({ d: farAway });
     await waitFor(() => expect(loading(result)).toBe(true));
 
     // ...then back to June, whose whole window is already synced, so the new
@@ -105,6 +106,53 @@ describe('useCalendarData sync', () => {
     rerender({ d: june });
     await act(async () => { finish(); });
 
+    await waitFor(() => expect(loading(result)).toBe(false));
+  });
+
+  it('shows no spinner when a swipe only brings an already prefetched month up to date', async () => {
+    const { result, rerender } = renderHook(({ d }: { d: Date }) => useCalendarData(d), { initialProps: { d: june } });
+    await waitFor(() => expect(mockedSync).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(loading(result)).toBe(false));
+    mockedSync.mockClear();
+
+    // August was prefetched, so July's window only needs it refreshed.
+    let finish!: () => void;
+    mockedSync.mockImplementationOnce(() => new Promise<void>((res) => { finish = res; }));
+    rerender({ d: july });
+    await waitFor(() => expect(mockedSync).toHaveBeenCalledTimes(1));
+    expect(ymd(mockedSync.mock.calls[0][2])).toBe('2026-08-01');
+    expect(loading(result)).toBe(false);
+
+    await act(async () => { finish(); });
+    expect(loading(result)).toBe(false);
+  });
+
+  it('refreshes months quietly once their coverage has expired', async () => {
+    const realNow = Date.now();
+    const now = jest.spyOn(Date, 'now').mockReturnValue(realNow);
+    const { result, rerender } = renderHook(({ d }: { d: Date }) => useCalendarData(d), { initialProps: { d: june } });
+    await waitFor(() => expect(mockedSync).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(loading(result)).toBe(false));
+    mockedSync.mockClear();
+
+    now.mockReturnValue(realNow + 10 * 60 * 1000);
+    let finish!: () => void;
+    mockedSync.mockImplementationOnce(() => new Promise<void>((res) => { finish = res; }));
+    // Every month of July's window has expired, so it is all synced again.
+    rerender({ d: july });
+    await waitFor(() => expect(mockedSync).toHaveBeenCalled());
+    expect(loading(result)).toBe(false);
+
+    await act(async () => { finish(); });
+    now.mockRestore();
+  });
+
+  it('shows the spinner for a month that has never been synced', async () => {
+    let finish!: () => void;
+    mockedSync.mockImplementationOnce(() => new Promise<void>((res) => { finish = res; }));
+    const { result } = renderHook(() => useCalendarData(june));
+    await waitFor(() => expect(loading(result)).toBe(true));
+    await act(async () => { finish(); });
     await waitFor(() => expect(loading(result)).toBe(false));
   });
 

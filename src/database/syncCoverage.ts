@@ -147,6 +147,14 @@ export function hasUncovered(
   return months.some((m) => !isCovered(scope, m, needFull, now));
 }
 
+// True if any of the months has not been synced at all (in any way, however
+// long ago) since the app started. Those are the months whose events may simply
+// not be here yet; every other month already shows what it has, and a sync of
+// it only brings it up to date.
+export function hasNeverSynced(scope: string, months: Date[]): boolean {
+  return months.some((m) => !covered.has(entryKey(scope, m)));
+}
+
 export function markCovered(scope: string, months: Date[], full: boolean, now: number = Date.now()): void {
   for (const m of months) {
     const key = entryKey(scope, m);

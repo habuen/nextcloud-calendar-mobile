@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 
 import { syncEvents } from '@/database/sync';
-import { coverageScope, hasUncovered, monthsAround, syncUncovered } from '@/database/syncCoverage';
+import { coverageScope, hasNeverSynced, hasUncovered, monthsAround, syncUncovered } from '@/database/syncCoverage';
 import { useEventsForRange } from '@/database/useEvents';
 import { useAccountStore } from '@/stores/accountStore';
 import { useCalendarStore } from '@/stores/calendarStore';
@@ -69,15 +69,25 @@ export function useCalendarData(date: Date) {
 
     (async () => {
       if (hasUncovered(scope, visible, true)) {
-        runningSyncs.current += 1;
-        setSyncing(true);
+        // The spinner is for months that may have no events here yet. A month
+        // that was prefetched, or synced a few minutes ago, already shows what
+        // it has and is only being brought up to date, so that runs unnoticed:
+        // showing it on every swipe made the app look busy all the time (and
+        // each spinner change re-renders the whole screen).
+        const visibly = hasNeverSynced(scope, visible);
+        if (visibly) {
+          runningSyncs.current += 1;
+          setSyncing(true);
+        }
         try {
           await syncUncovered({ scope, months: visible, full: true, run: runSync(true), isStale });
         } catch (error) {
           console.warn('[useCalendarData] syncEvents failed:', String(error));
         } finally {
-          runningSyncs.current -= 1;
-          setSyncing(runningSyncs.current > 0);
+          if (visibly) {
+            runningSyncs.current -= 1;
+            setSyncing(runningSyncs.current > 0);
+          }
         }
       }
       for (const months of prefetch) {

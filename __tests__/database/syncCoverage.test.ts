@@ -3,6 +3,7 @@ import {
   COVERAGE_TTL_MS,
   MAX_CONCURRENT_SYNCS,
   coverageScope,
+  hasNeverSynced,
   hasUncovered,
   markCovered,
   missingRanges,
@@ -96,6 +97,36 @@ describe('missingRanges', () => {
     markCovered(scope, [june], true, t0);
     markCovered(scope, [june], false, t0 + 1000);
     expect(missingRanges(scope, [june], true, t0 + 2000)).toEqual([]);
+  });
+});
+
+describe('hasNeverSynced', () => {
+  const months = monthsAround(june, -1, 1);
+
+  it('is true for months nothing has synced yet', () => {
+    expect(hasNeverSynced(scope, months)).toBe(true);
+  });
+
+  it('is true while even one of the months is missing', () => {
+    markCovered(scope, months.slice(0, 2), true);
+    expect(hasNeverSynced(scope, months)).toBe(true);
+  });
+
+  it('is false once every month has been synced, by a prefetch or a full sync', () => {
+    markCovered(scope, months.slice(0, 2), true);
+    markCovered(scope, months.slice(2), false);
+    expect(hasNeverSynced(scope, months)).toBe(false);
+  });
+
+  it('stays false after the coverage has expired, since the events are already there', () => {
+    markCovered(scope, months, true, 0);
+    expect(hasUncovered(scope, months, true, COVERAGE_TTL_MS + 1)).toBe(true);
+    expect(hasNeverSynced(scope, months)).toBe(false);
+  });
+
+  it('does not mix up accounts or calendar sets', () => {
+    markCovered(scope, months, true);
+    expect(hasNeverSynced('other|cal-a', months)).toBe(true);
   });
 });
 
