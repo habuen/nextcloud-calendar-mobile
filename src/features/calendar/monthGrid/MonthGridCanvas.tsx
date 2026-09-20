@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
-import { Canvas, Picture } from '@shopify/react-native-skia';
+import { SkiaPictureView } from '@shopify/react-native-skia';
 import dayjs from 'dayjs';
 import { useSettingsStore } from '@/stores/settingsStore';
 import type { CalendarEvent } from '@/types';
@@ -19,7 +19,7 @@ export interface MonthGridCanvasProps {
   onPressEvent: (e: CalendarEvent) => void;
 }
 
-// A whole month page drawn onto ONE canvas from a recorded picture, with one
+// A whole month page drawn onto ONE native surface from a recorded picture, with one
 // touch surface over it. The view-based renderer builds a couple of hundred
 // native views per page on the JS thread as a page swipes in; this builds none,
 // and (see monthPageCache) neither lays out nor records anything itself: the
@@ -41,11 +41,14 @@ export const MonthGridCanvas = memo(function MonthGridCanvas({
 
   return (
     <View testID="canvas-area" style={styles.area}>
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <Canvas style={styles.canvas}>
-          <Picture picture={picture} />
-        </Canvas>
-      </View>
+      {/* SkiaPictureView hands the recorded picture straight to the native view.
+          <Canvas><Picture/></Canvas> did the same through Skia's JS scene-graph
+          reconciler, which builds a root, an animated ref and a layout effect per
+          page mounted and re-renders them whenever the picture changes: all of it
+          JS-thread work landing mid-swipe, to show a picture we already have.
+          Not opaque: an opaque surface is black until its first draw, and this
+          one sits over the page background so it can start out transparent. */}
+      <SkiaPictureView pointerEvents="none" style={StyleSheet.absoluteFill} picture={picture} />
       <Pressable
         testID="week-touch"
         style={StyleSheet.absoluteFill}
@@ -94,5 +97,4 @@ const PageAccessibility = memo(function PageAccessibility({
 
 const styles = StyleSheet.create({
   area: { flex: 1 },
-  canvas: { flex: 1 },
 });

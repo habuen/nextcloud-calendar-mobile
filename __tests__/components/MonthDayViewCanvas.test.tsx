@@ -84,9 +84,12 @@ describe('MonthDayView with the canvas renderer', () => {
     expect(useSettingsStore.getInitialState().monthRenderer).toBe('canvas');
   });
 
-  it('builds one canvas and one touch surface for the whole page, and no per-day views', () => {
+  it('builds one picture surface and one touch surface for the whole page, and no per-day views', () => {
     const { getAllByTestId, queryAllByTestId, queryByText } = mount([party, trip]);
-    expect(getAllByTestId('skia-canvas')).toHaveLength(1);
+    expect(getAllByTestId('skia-picture')).toHaveLength(1);
+    // The picture goes straight to the native view, not through a JS <Canvas>
+    // scene-graph root per page.
+    expect(queryAllByTestId('skia-canvas')).toHaveLength(0);
     expect(getAllByTestId('week-touch')).toHaveLength(1);
     expect(queryAllByTestId('lane-bar')).toHaveLength(0);
     expect(queryByText('Birthday Party')).toBeNull(); // drawn, not a view
@@ -98,7 +101,7 @@ describe('MonthDayView with the canvas renderer', () => {
       <MonthDayView date={june10} events={[party]} weekStartsOn={0} jump={{ nonce: 0, target: june10 }}
         onSelectDate={jest.fn()} onMonthChange={jest.fn()} onPressEvent={jest.fn()} onPressCell={jest.fn()} />
     );
-    expect(queryAllByTestId('skia-canvas')).toHaveLength(0);
+    expect(queryAllByTestId('skia-picture')).toHaveLength(0);
     expect(queryAllByTestId('lane-bar').length).toBeGreaterThan(0);
   });
 

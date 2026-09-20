@@ -101,6 +101,7 @@ jest.mock('@shopify/react-native-skia', () => {
   const noop = () => undefined;
   const paint = () => ({ setAntiAlias: noop, setColor: noop, setStyle: noop, setStrokeWidth: noop });
   return {
+    SkiaPictureView: (props) => React.createElement(View, { testID: 'skia-picture', style: props.style }),
     Canvas: (props) => React.createElement(View, { testID: 'skia-canvas', style: props.style }, props.children),
     Picture: () => null,
     createPicture: () => ({ __picture: true }),
