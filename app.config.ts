@@ -18,6 +18,12 @@ if (versionCode !== major * 10000 + minor * 100 + patch) {
     );
 }
 
+// A sideloaded test APK only has to run on one phone, and every current Android
+// phone is 64-bit ARM. The default build carries the native libraries (Skia,
+// Hermes, SQLite, ...) for four CPU types, so this trims it to that one. Set
+// only by the `apk` profile in eas.json; store builds keep every CPU type.
+const arm64Only = process.env.NCM_ARM64_ONLY === '1';
+
 const config: ExpoConfig = {
     name: 'Nextcloud Calendar',
     slug: 'nextcloud-calendar',
@@ -67,6 +73,9 @@ const config: ExpoConfig = {
     },
 
     plugins: [
+        ...(arm64Only
+            ? [['expo-build-properties', {android: {buildArchs: ['arm64-v8a']}}] as [string, object]]
+            : []),
         './plugins/withAndroidNetworkSecurityConfig',
         '@morrowdigital/watermelondb-expo-plugin',
         '@react-native-community/datetimepicker',

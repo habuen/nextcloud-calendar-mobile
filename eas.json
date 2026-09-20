@@ -15,6 +15,9 @@
       "distribution": "internal"
     },
     "apk": {
+      "env": {
+        "NCM_ARM64_ONLY": "1"
+      },
       "android": {
         "buildType": "apk"
       }
