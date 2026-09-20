@@ -11,6 +11,7 @@ import InfinitePager, { type InfinitePagerImperativeApi } from 'react-native-inf
 import { useSettingsStore } from '@/stores/settingsStore';
 import { MonthGridCanvas } from '../monthGrid/MonthGridCanvas';
 import { createMonthPageCache, type MonthPage } from '../monthGrid/monthPageCache';
+import { useScreenReaderEnabled } from '../monthGrid/useScreenReaderEnabled';
 import type { CalendarEvent } from '@/types';
 import {
   buildMonthGrid,
@@ -121,8 +122,8 @@ const MonthPageCanvas = memo(function MonthPageCanvas({
   weekNumbers, gutterColor, ...canvasProps
 }: {
   weeks: (dayjs.Dayjs | null)[][];
-  eventsByDay: Map<string, CalendarEvent[]>;
   page: MonthPage;
+  screenReader: boolean;
   weekNumbers: (number | null)[] | null;
   gutterColor: string;
   onDayPress: (d: dayjs.Dayjs) => void;
@@ -394,6 +395,9 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
   const showWeekNumbers = useSettingsStore((s) => s.showWeekNumbers);
   const monthRenderer = useSettingsStore((s) => s.monthRenderer);
   const { t } = useTranslation();
+  // Read once here, not by every mounted page: each page asking the system
+  // (and listening) on mount was a native call per page per swipe.
+  const screenReader = useScreenReaderEnabled();
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -541,14 +545,13 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
   const { surfaceRaised, primary, text, textTertiary } = theme.colors;
   const pageCache = useMemo(
     () => createMonthPageCache({
-      eventsByDay,
       width: canvasWidth,
       height: pagerHeight,
       mode: monthEventDisplay,
       today,
       palette: { tile: surfaceRaised, primary, text, textTertiary },
     }),
-    [eventsByDay, canvasWidth, pagerHeight, monthEventDisplay, today, surfaceRaised, primary, text, textTertiary],
+    [canvasWidth, pagerHeight, monthEventDisplay, today, surfaceRaised, primary, text, textTertiary],
   );
 
   const warmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -560,11 +563,11 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
     const next = () => {
       if (step >= WARM_OFFSETS.length) { warmTimer.current = null; return; }
       const m = dayjs(localAnchorRef.current).add(index + WARM_OFFSETS[step++], 'month');
-      pageCache.get(gridFor(m).weeks);
+      pageCache.get(gridFor(m).weeks, eventsByDay);
       warmTimer.current = setTimeout(next, WARM_STEP_DELAY_MS);
     };
     warmTimer.current = setTimeout(next, WARM_START_DELAY_MS);
-  }, [monthRenderer, pageCache, gridFor]);
+  }, [monthRenderer, pageCache, gridFor, eventsByDay]);
 
   warmAroundRef.current = warmAround;
 
@@ -582,8 +585,8 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
       return (
         <MonthPageCanvas
           weeks={weeks}
-          eventsByDay={eventsByDay}
-          page={pageCache.get(weeks)}
+          page={pageCache.get(weeks, eventsByDay)}
+          screenReader={screenReader}
           weekNumbers={weekNumbers}
           gutterColor={textTertiary}
           onDayPress={handleDayPress}
@@ -617,7 +620,7 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
     );
   }, [
     localAnchor, gridFor, monthRenderer, pageCache, monthEventDisplay, today, eventsByDay, pagerHeight,
-    theme.colors, textTertiary, handleDayPress, onPressCell, onPressEvent,
+    theme.colors, textTertiary, screenReader, handleDayPress, onPressCell, onPressEvent,
   ]);
 
   return (
@@ -650,7 +653,17 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
   );
 }
 
-export const MonthDayView = memo(MonthDayViewImpl);
+// `date` is only read to pick the first month shown (state seeded on mount); it
+// changes on every swipe as the parent follows the month, and re-rendering the
+// whole view for a prop it doesn't use is pure cost. Later moves reach the view
+// through `jump`.
+export const MonthDayView = memo(MonthDayViewImpl, (prev, next) => {
+  const keys = new Set([...Object.keys(prev), ...Object.keys(next)]) as Set<keyof Props>;
+  for (const key of keys) {
+    if (key !== 'date' && !Object.is(prev[key], next[key])) return false;
+  }
+  return true;
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
