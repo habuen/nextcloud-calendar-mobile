@@ -10,6 +10,7 @@ import { useTheme } from 'expo-router';
 import InfinitePager, { type InfinitePagerImperativeApi } from 'react-native-infinite-pager';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { MonthGridCanvas } from '../monthGrid/MonthGridCanvas';
+import { createMonthPageCache, type MonthPage } from '../monthGrid/monthPageCache';
 import type { CalendarEvent } from '@/types';
 import {
   buildMonthGrid,
@@ -57,6 +58,14 @@ dayjs.extend(localizedFormat);
 // Jumps within this many months slide (animated); farther ones re-anchor
 // instantly rather than spring across a long stretch of empty months.
 const MAX_ANIMATED_JUMP_MONTHS = 2;
+
+// After a swipe settles, the months a further swipe could reach are built in
+// the background, one per tick, so the page that mounts mid-swipe finds its
+// picture already recorded. Nearest first; the wait lets the swipe's own commit
+// go through before any of it starts.
+const WARM_OFFSETS = [1, -1, 2, -2, 3, -3];
+const WARM_START_DELAY_MS = 120;
+const WARM_STEP_DELAY_MS = 40;
 
 interface Props {
   date: Date;
@@ -109,27 +118,21 @@ const WeekNumberGutter = memo(function WeekNumberGutter({
 // The canvas renderer's page: the same week-number column as the view-based
 // pages, beside a single canvas that draws the whole week area.
 const MonthPageCanvas = memo(function MonthPageCanvas({
-  weekNumbers, colors, ...canvasProps
+  weekNumbers, gutterColor, ...canvasProps
 }: {
   weeks: (dayjs.Dayjs | null)[][];
-  today: dayjs.Dayjs;
   eventsByDay: Map<string, CalendarEvent[]>;
-  pagerHeight: number;
-  mode: 'bars' | 'dots';
+  page: MonthPage;
   weekNumbers: (number | null)[] | null;
-  colors: ReturnType<typeof useTheme>['colors'];
+  gutterColor: string;
   onDayPress: (d: dayjs.Dayjs) => void;
   onPressCell: (d: Date) => void;
   onPressEvent: (e: CalendarEvent) => void;
 }) {
   return (
     <View style={styles.monthPage}>
-      {weekNumbers && <WeekNumberGutter numbers={weekNumbers} color={colors.textTertiary} />}
-      <MonthGridCanvas
-        {...canvasProps}
-        colors={colors}
-        gutterWidth={weekNumbers ? WEEK_NUMBER_GUTTER : 0}
-      />
+      {weekNumbers && <WeekNumberGutter numbers={weekNumbers} color={gutterColor} />}
+      <MonthGridCanvas {...canvasProps} />
     </View>
   );
 });
@@ -431,10 +434,15 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
   const [measuredGridHeight, setMeasuredGridHeight] = useState(
     () => Dimensions.get('window').height - ESTIMATED_CHROME_HEIGHT,
   );
+  // The width is measured here, once, rather than by each canvas page: a page
+  // that learns its width after mounting would lay out and record twice.
+  const [measuredGridWidth, setMeasuredGridWidth] = useState(() => Dimensions.get('window').width);
   const handleGridLayout = useCallback((e: LayoutChangeEvent) => {
     setMeasuredGridHeight(e.nativeEvent.layout.height);
+    setMeasuredGridWidth(e.nativeEvent.layout.width);
   }, []);
   const pagerHeight = measuredGridHeight - DOW_ROW_HEIGHT;
+  const canvasWidth = measuredGridWidth - (showWeekNumbers ? WEEK_NUMBER_GUTTER : 0);
 
   // The pager pages by whole months: page `index` renders the month `index`
   // months from `localAnchor`. localAnchor is only reset on an external jump
@@ -487,9 +495,13 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
     setLocalAnchor(jump.target);
   }, [jump]);
 
+  // Set below, once the grid cache it builds from exists.
+  const warmAroundRef = useRef<(index: number) => void>(() => {});
+
   const handlePageChange = useCallback((index: number) => {
     const prev = settledIndexRef.current;
     settledIndexRef.current = index;
+    warmAroundRef.current(index);
     if (jumpTargetRef.current !== null) {
       if (index === jumpTargetRef.current) jumpTargetRef.current = null;
       return;
@@ -524,6 +536,45 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
     return hit;
   }, [weekStartsOn, showWeekNumbers]);
 
+  // Built pages for the canvas renderer. A new cache (empty) whenever anything a
+  // page is drawn from changes; otherwise months are built once and reused.
+  const { surfaceRaised, primary, text, textTertiary } = theme.colors;
+  const pageCache = useMemo(
+    () => createMonthPageCache({
+      eventsByDay,
+      width: canvasWidth,
+      height: pagerHeight,
+      mode: monthEventDisplay,
+      today,
+      palette: { tile: surfaceRaised, primary, text, textTertiary },
+    }),
+    [eventsByDay, canvasWidth, pagerHeight, monthEventDisplay, today, surfaceRaised, primary, text, textTertiary],
+  );
+
+  const warmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warmAround = useCallback((index: number) => {
+    if (warmTimer.current) clearTimeout(warmTimer.current);
+    warmTimer.current = null;
+    if (monthRenderer !== 'canvas') return;
+    let step = 0;
+    const next = () => {
+      if (step >= WARM_OFFSETS.length) { warmTimer.current = null; return; }
+      const m = dayjs(localAnchorRef.current).add(index + WARM_OFFSETS[step++], 'month');
+      pageCache.get(gridFor(m).weeks);
+      warmTimer.current = setTimeout(next, WARM_STEP_DELAY_MS);
+    };
+    warmTimer.current = setTimeout(next, WARM_START_DELAY_MS);
+  }, [monthRenderer, pageCache, gridFor]);
+
+  warmAroundRef.current = warmAround;
+
+  // Warm on mount and whenever the cache is replaced (settings, sync, resize);
+  // handlePageChange re-aims it after each swipe.
+  useEffect(() => {
+    warmAround(settledIndexRef.current);
+    return () => { if (warmTimer.current) clearTimeout(warmTimer.current); };
+  }, [warmAround, pagerKey]);
+
   const renderPage = useCallback(({ index }: { index: number }) => {
     const m = dayjs(localAnchor).add(index, 'month');
     const { weeks, weekNumbers } = gridFor(m);
@@ -531,12 +582,10 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
       return (
         <MonthPageCanvas
           weeks={weeks}
-          today={today}
           eventsByDay={eventsByDay}
-          pagerHeight={pagerHeight}
-          mode={monthEventDisplay}
+          page={pageCache.get(weeks)}
           weekNumbers={weekNumbers}
-          colors={theme.colors}
+          gutterColor={textTertiary}
           onDayPress={handleDayPress}
           onPressCell={onPressCell}
           onPressEvent={onPressEvent}
@@ -567,8 +616,8 @@ function MonthDayViewImpl({ date, events, weekStartsOn, jump, onSelectDate, onMo
       />
     );
   }, [
-    localAnchor, gridFor, monthRenderer, monthEventDisplay, today, eventsByDay, pagerHeight,
-    theme.colors, handleDayPress, onPressCell, onPressEvent,
+    localAnchor, gridFor, monthRenderer, pageCache, monthEventDisplay, today, eventsByDay, pagerHeight,
+    theme.colors, textTertiary, handleDayPress, onPressCell, onPressEvent,
   ]);
 
   return (

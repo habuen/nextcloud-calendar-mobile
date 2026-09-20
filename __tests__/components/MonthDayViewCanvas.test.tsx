@@ -59,9 +59,9 @@ function mount(events: CalendarEvent[], gutter = 0) {
       onPressCell={onPressCell}
     />
   );
-  // 26 is the height of the weekday header above the pager.
+  // 26 is the height of the weekday header above the pager. The canvas is the
+  // grid's width minus the week-number column, if shown.
   fireEvent(utils.getByTestId('month-grid'), 'layout', { nativeEvent: { layout: { width: PAGE_W, height: PAGE_H + 26 } } });
-  fireEvent(utils.getByTestId('canvas-area'), 'layout', { nativeEvent: { layout: { width: PAGE_W - gutter, height: PAGE_H } } });
   const layout = layoutMonthPage({
     weeks, eventsByDay: eventsByDay(events), width: PAGE_W - gutter, height: PAGE_H, mode: 'bars', today: dayjs(),
   });
@@ -150,9 +150,9 @@ describe('MonthDayView with the canvas renderer', () => {
     expect(dayOf(bar.onPressCell)).toBe('2026-06-16');
   });
 
-  it('works out taps from the width the canvas was actually given, not the window\'s', () => {
+  it('works out taps from the width the grid was actually given, not the window\'s', () => {
     const m = mount([party]);
-    fireEvent(m.getByTestId('canvas-area'), 'layout', { nativeEvent: { layout: { width: 350, height: PAGE_H } } });
+    fireEvent(m.getByTestId('month-grid'), 'layout', { nativeEvent: { layout: { width: 350, height: PAGE_H + 26 } } });
     const narrow = layoutMonthPage({
       weeks, eventsByDay: eventsByDay([party]), width: 350, height: PAGE_H, mode: 'bars', today: dayjs(),
     });
